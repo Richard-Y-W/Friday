@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.jarvis/
+.friday/
+outputs/
+*.db
+.DS_Store

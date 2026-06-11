@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis-research"
+version = "0.1.0"
+description = "Safe scholarly scanning and reporting CLI for Jarvis Research."
+requires-python = ">=3.9"
+
+[project.scripts]
+jarvis = "jarvis_research.cli:main"

@@ -1,0 +1,678 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "case_id": "gold.query.maldi_amr_biomedical",
+      "type": "query_plan",
+      "description": "MALDI AMR resolves to antimicrobial resistance, not NLP or mesh-refinement meanings.",
+      "query": "MALDI AMR",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "MALDI antimicrobial resistance",
+          "MALDI-TOF antibiotic resistance"
+        ],
+        "rejected_meanings_contains": [
+          "abstract meaning representation",
+          "adaptive mesh refinement"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.amr_parsing_nlp",
+      "type": "query_plan",
+      "description": "AMR parsing resolves to abstract meaning representation.",
+      "query": "AMR parsing",
+      "expected": {
+        "intent": "nlp",
+        "expanded_contains": [
+          "abstract meaning representation parsing"
+        ],
+        "rejected_meanings_contains": [
+          "antimicrobial resistance",
+          "adaptive mesh refinement"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.amr_mesh_computational",
+      "type": "query_plan",
+      "description": "AMR mesh refinement resolves to adaptive mesh refinement.",
+      "query": "AMR mesh refinement simulation",
+      "expected": {
+        "intent": "computational",
+        "expanded_contains": [
+          "adaptive mesh refinement mesh refinement simulation"
+        ],
+        "rejected_meanings_contains": [
+          "antimicrobial resistance",
+          "abstract meaning representation"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.math_language_natural",
+      "type": "query_plan",
+      "description": "A casual math-language prompt becomes scholarly mathematical linguistics searches.",
+      "query": "jarvis what is the importance of math in language",
+      "expected": {
+        "intent": "mathematical_linguistics",
+        "expanded_contains": [
+          "mathematical linguistics",
+          "formal language theory natural language"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.language_computation_natural",
+      "type": "query_plan",
+      "description": "A casual language-computation prompt routes to mathematical linguistics searches.",
+      "query": "jarvis tell me how language is computation",
+      "expected": {
+        "intent": "mathematical_linguistics",
+        "expanded_contains": [
+          "formal language theory natural language",
+          "information theory language"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.maldi_mdr_mic_biomedical",
+      "type": "query_plan",
+      "description": "MDR and MIC expand only once biomedical context is present.",
+      "query": "MALDI MDR MIC",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "MALDI multidrug resistance minimum inhibitory concentration"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.maldi_ast_biomedical",
+      "type": "query_plan",
+      "description": "MALDI AST resolves AST as antimicrobial susceptibility testing.",
+      "query": "MALDI AST",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "MALDI antimicrobial susceptibility testing"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.esbl_cre_biomedical",
+      "type": "query_plan",
+      "description": "ESBL and CRE are treated as strong biomedical AMR-family acronyms.",
+      "query": "ESBL CRE surveillance",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "extended-spectrum beta-lactamase carbapenem-resistant Enterobacteriaceae surveillance"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.mdr_antimicrobial_biomedical",
+      "type": "query_plan",
+      "description": "MDR expands under explicit antimicrobial susceptibility context.",
+      "query": "MDR antimicrobial susceptibility",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "multidrug resistance antimicrobial susceptibility"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.pcr_biomedical",
+      "type": "query_plan",
+      "description": "PCR resolves through the generic registry as a biomedical acronym.",
+      "query": "PCR assay diagnostic sensitivity",
+      "expected": {
+        "intent": "biomedical",
+        "expanded_contains": [
+          "polymerase chain reaction assay diagnostic sensitivity"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.cnn_ml",
+      "type": "query_plan",
+      "description": "CNN resolves through the generic registry as a machine-learning acronym.",
+      "query": "CNN image classification",
+      "expected": {
+        "intent": "ml",
+        "expanded_contains": [
+          "convolutional neural network image classification"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.svm_ml",
+      "type": "query_plan",
+      "description": "SVM resolves through the generic registry as a machine-learning acronym.",
+      "query": "SVM classifier feature selection",
+      "expected": {
+        "intent": "ml",
+        "expanded_contains": [
+          "support vector machine classifier feature selection"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.llm_nlp",
+      "type": "query_plan",
+      "description": "LLM and NLP resolve through the generic registry as language-AI acronyms.",
+      "query": "LLM NLP evaluation",
+      "expected": {
+        "intent": "nlp",
+        "expanded_contains": [
+          "large language model natural language processing evaluation"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.query.unknown_acronym_audited",
+      "type": "query_plan",
+      "description": "Unknown acronym-like tokens are preserved and audited instead of guessed.",
+      "query": "XYZ biomarker discovery",
+      "expected": {
+        "intent": "unknown",
+        "expanded_contains": [
+          "XYZ biomarker discovery"
+        ],
+        "unresolved_acronyms_contains": [
+          "XYZ"
+        ]
+      }
+    },
+    {
+      "case_id": "gold.source.github_paper_pdf_blocked",
+      "type": "source_policy",
+      "description": "A GitHub URL that looks like a paper PDF remains blocked.",
+      "source": "https://github.com/example/repo/blob/main/paper.pdf",
+      "expected": {
+        "allowed": false,
+        "reason": "blocked_domain",
+        "domain": "github.com"
+      }
+    },
+    {
+      "case_id": "gold.source.bare_doi_allowed",
+      "type": "source_policy",
+      "description": "A bare DOI is allowed as a scholarly identifier.",
+      "source": "doi:10.1128/jcm.00001-26",
+      "expected": {
+        "allowed": true,
+        "reason": "allowed_doi",
+        "normalized": "10.1128/jcm.00001-26"
+      }
+    },
+    {
+      "case_id": "gold.source.arxiv_pdf_allowed",
+      "type": "source_policy",
+      "description": "An arXiv PDF URL is allowed.",
+      "source": "https://arxiv.org/pdf/2401.12345",
+      "expected": {
+        "allowed": true,
+        "reason": "allowed_domain",
+        "domain": "arxiv.org",
+        "normalized": "https://arxiv.org/pdf/2401.12345"
+      }
+    },
+    {
+      "case_id": "gold.source.pmc_pdf_allowed",
+      "type": "source_policy",
+      "description": "A PubMed Central article PDF route is allowed.",
+      "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1234567/pdf/",
+      "expected": {
+        "allowed": true,
+        "reason": "allowed_domain",
+        "domain": "pmc.ncbi.nlm.nih.gov"
+      }
+    },
+    {
+      "case_id": "gold.source.nature_pdf_allowed",
+      "type": "source_policy",
+      "description": "A Nature article PDF route is allowed while staying inside the scholarly allowlist.",
+      "source": "https://www.nature.com/articles/s41586-020-2649-2.pdf",
+      "expected": {
+        "allowed": true,
+        "reason": "allowed_domain",
+        "domain": "www.nature.com"
+      }
+    },
+    {
+      "case_id": "gold.source.frontiers_pdf_allowed",
+      "type": "source_policy",
+      "description": "A Frontiers PDF route is allowed.",
+      "source": "https://www.frontiersin.org/articles/10.3389/fmicb.2015.00791/pdf",
+      "expected": {
+        "allowed": true,
+        "reason": "allowed_domain",
+        "domain": "www.frontiersin.org"
+      }
+    },
+    {
+      "case_id": "gold.source.arxiv_eprint_blocked",
+      "type": "source_policy",
+      "description": "arXiv e-print tarball routes are blocked as artifacts.",
+      "source": "https://arxiv.org/e-print/2401.12345",
+      "expected": {
+        "allowed": false,
+        "reason": "blocked_extension_or_artifact",
+        "domain": "arxiv.org"
+      }
+    },
+    {
+      "case_id": "gold.source.nature_zip_blocked",
+      "type": "source_policy",
+      "description": "Archive downloads are blocked even on allowlisted scholarly domains.",
+      "source": "https://www.nature.com/articles/example.zip",
+      "expected": {
+        "allowed": false,
+        "reason": "blocked_extension_or_artifact",
+        "domain": "www.nature.com"
+      }
+    },
+    {
+      "case_id": "gold.source.google_drive_blocked",
+      "type": "source_policy",
+      "description": "Cloud drive files remain blocked as non-scholarly ingestion surfaces.",
+      "source": "https://drive.google.com/file/d/abc/view",
+      "expected": {
+        "allowed": false,
+        "reason": "blocked_domain",
+        "domain": "drive.google.com"
+      }
+    },
+    {
+      "case_id": "gold.source.unsupported_identifier_blocked",
+      "type": "source_policy",
+      "description": "Plain non-DOI identifiers are rejected.",
+      "source": "not-a-source",
+      "expected": {
+        "allowed": false,
+        "reason": "unsupported_identifier",
+        "normalized": "not-a-source"
+      }
+    },
+    {
+      "case_id": "gold.ranking.maldi_amr_prefers_biomedical",
+      "type": "ranking",
+      "description": "MALDI AMR ranks biomedical antimicrobial-resistance metadata above NLP AMR metadata.",
+      "query": "MALDI AMR",
+      "candidates": [
+        {
+          "provider": "arxiv",
+          "title": "AMR parsing with semantic graph generation",
+          "source_for_gate": "https://arxiv.org/pdf/2401.00001",
+          "arxiv_id": "2401.00001",
+          "abstract": "Abstract meaning representation parsing for natural language text generation and semantic graphs.",
+          "year": 2025
+        },
+        {
+          "provider": "pubmed",
+          "title": "MALDI-TOF antimicrobial resistance prediction in clinical isolates",
+          "source_for_gate": "10.1000/gold-maldi-amr",
+          "doi": "10.1000/gold-maldi-amr",
+          "abstract": "MALDI spectra were used for antimicrobial susceptibility testing in clinical isolates.",
+          "journal": "Clinical Microbiology and Infection",
+          "mesh_terms": "Drug Resistance, Microbial; Mass Spectrometry",
+          "concepts": "antimicrobial resistance; clinical microbiology",
+          "year": 2025
+        }
+      ],
+      "expected": {
+        "top_source": "10.1000/gold-maldi-amr"
+      }
+    },
+    {
+      "case_id": "gold.ranking.amr_parsing_prefers_nlp",
+      "type": "ranking",
+      "description": "AMR parsing ranks abstract-meaning-representation metadata above biomedical AMR metadata.",
+      "query": "AMR parsing",
+      "candidates": [
+        {
+          "provider": "pubmed",
+          "title": "MALDI-TOF antimicrobial resistance prediction in clinical isolates",
+          "source_for_gate": "10.1000/gold-bio-collision",
+          "doi": "10.1000/gold-bio-collision",
+          "abstract": "Antimicrobial resistance and antibiotic susceptibility from MALDI spectra.",
+          "mesh_terms": "Drug Resistance, Microbial; Mass Spectrometry",
+          "concepts": "antimicrobial resistance; microbiology",
+          "year": 2025
+        },
+        {
+          "provider": "arxiv",
+          "title": "AMR parsing with semantic graph generation",
+          "source_for_gate": "https://arxiv.org/pdf/2401.00002",
+          "arxiv_id": "2401.00002",
+          "abstract": "Abstract meaning representation parsing for natural language text generation and semantic graphs.",
+          "concepts": "natural language processing; semantic graph parsing",
+          "year": 2025
+        }
+      ],
+      "expected": {
+        "top_source": "https://arxiv.org/pdf/2401.00002"
+      }
+    },
+    {
+      "case_id": "gold.ranking.maldi_ast_prefers_clinical_ast",
+      "type": "ranking",
+      "description": "MALDI AST ranks antimicrobial susceptibility testing above compiler AST papers.",
+      "query": "MALDI AST",
+      "candidates": [
+        {
+          "provider": "arxiv",
+          "title": "Abstract syntax tree parsing for compilers",
+          "source_for_gate": "https://arxiv.org/pdf/2402.00001",
+          "arxiv_id": "2402.00001",
+          "abstract": "AST parsing and code generation for programming languages.",
+          "concepts": "programming languages",
+          "year": 2025
+        },
+        {
+          "provider": "openalex",
+          "title": "MALDI-TOF antimicrobial susceptibility testing for bloodstream isolates",
+          "source_for_gate": "10.1000/gold-maldi-ast",
+          "doi": "10.1000/gold-maldi-ast",
+          "abstract": "Rapid AST from mass spectrometry predicts antibiotic susceptibility in clinical bacterial isolates.",
+          "concepts": "clinical microbiology; mass spectrometry",
+          "year": 2025
+        }
+      ],
+      "expected": {
+        "top_source": "10.1000/gold-maldi-ast"
+      }
+    },
+    {
+      "case_id": "gold.ranking.esbl_cre_prefers_clinical_surveillance",
+      "type": "ranking",
+      "description": "ESBL CRE surveillance ranks clinical antimicrobial-resistance surveillance above off-topic surveillance.",
+      "query": "ESBL CRE surveillance",
+      "candidates": [
+        {
+          "provider": "openalex",
+          "title": "Urban traffic surveillance with sensor networks",
+          "source_for_gate": "10.1000/gold-traffic-surveillance",
+          "doi": "10.1000/gold-traffic-surveillance",
+          "abstract": "Camera networks track vehicles in city infrastructure.",
+          "concepts": "transportation surveillance",
+          "year": 2024
+        },
+        {
+          "provider": "pubmed",
+          "title": "Surveillance of ESBL-producing and carbapenem-resistant Enterobacteriaceae",
+          "source_for_gate": "10.1000/gold-esbl-cre",
+          "doi": "10.1000/gold-esbl-cre",
+          "abstract": "Clinical microbiology surveillance tracks extended-spectrum beta-lactamase and CRE isolates.",
+          "mesh_terms": "Drug Resistance, Bacterial; Enterobacteriaceae Infections",
+          "concepts": "antimicrobial resistance; clinical microbiology",
+          "year": 2024
+        }
+      ],
+      "expected": {
+        "top_source": "10.1000/gold-esbl-cre"
+      }
+    },
+    {
+      "case_id": "gold.ranking.maldi_amr_uses_rich_metadata",
+      "type": "ranking",
+      "description": "MALDI AMR ranking uses MeSH, journal, and OpenAlex concepts beyond title text.",
+      "query": "MALDI AMR",
+      "candidates": [
+        {
+          "provider": "pubmed",
+          "title": "Cross-site model generalization",
+          "source_for_gate": "https://pubmed.ncbi.nlm.nih.gov/87654321/",
+          "abstract": "Clinical spectra model validation.",
+          "year": 2023
+        },
+        {
+          "provider": "pubmed",
+          "title": "Cross-site model generalization",
+          "source_for_gate": "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+          "abstract": "Clinical spectra model validation.",
+          "journal": "Journal of Clinical Microbiology",
+          "mesh_terms": "Drug Resistance, Microbial; Mass Spectrometry",
+          "concepts": "Antimicrobial resistance; Mass spectrometry",
+          "year": 2023
+        }
+      ],
+      "expected": {
+        "top_source": "https://pubmed.ncbi.nlm.nih.gov/12345678/"
+      }
+    },
+    {
+      "case_id": "gold.ranking.math_language_prefers_formal_theory",
+      "type": "ranking",
+      "description": "Math-language natural questions rank formal language theory above clinical language papers.",
+      "query": "formal language automata",
+      "candidates": [
+        {
+          "provider": "pubmed",
+          "title": "Language recovery after stroke",
+          "source_for_gate": "10.1000/gold-stroke-language",
+          "doi": "10.1000/gold-stroke-language",
+          "abstract": "Clinical patient study of aphasia therapy and language recovery.",
+          "concepts": "clinical neuroscience",
+          "year": 2023
+        },
+        {
+          "provider": "openalex",
+          "title": "Algebraic automata in formal language theory",
+          "source_for_gate": "10.1000/gold-automata-language",
+          "doi": "10.1000/gold-automata-language",
+          "abstract": "Formal grammars, automata, syntax, and algebra model language structure.",
+          "concepts": "formal language theory; mathematical linguistics",
+          "year": 2023
+        }
+      ],
+      "expected": {
+        "top_source": "10.1000/gold-automata-language"
+      }
+    },
+    {
+      "case_id": "gold.ranking.math_language_penalizes_generic_llm",
+      "type": "ranking",
+      "description": "Math-language ranking prefers formal theory over generic LLM education metadata.",
+      "query": "what is the importance of math in language",
+      "candidates": [
+        {
+          "provider": "openalex",
+          "title": "ChatGPT and large language models for mathematics education",
+          "source_for_gate": "10.1000/gold-chatgpt-education",
+          "doi": "10.1000/gold-chatgpt-education",
+          "abstract": "Students use language models for mathematics homework and classroom instruction.",
+          "concepts": "education; large language models",
+          "year": 2024
+        },
+        {
+          "provider": "openalex",
+          "title": "Mathematical linguistics and formal language theory",
+          "source_for_gate": "10.1000/gold-math-language",
+          "doi": "10.1000/gold-math-language",
+          "abstract": "Syntax, grammars, algebra, and automata provide mathematical models of natural language.",
+          "concepts": "formal language theory; mathematical linguistics",
+          "year": 2024
+        }
+      ],
+      "expected": {
+        "top_source": "10.1000/gold-math-language"
+      }
+    },
+    {
+      "case_id": "gold.label.maldi_amr_relevant",
+      "type": "screening_label",
+      "description": "Clear MALDI antimicrobial-resistance metadata is labeled relevant.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "MALDI-TOF antimicrobial resistance prediction",
+        "source_for_gate": "10.1000/gold-label-relevant",
+        "doi": "10.1000/gold-label-relevant",
+        "abstract": "Antimicrobial resistance and antibiotic susceptibility from MALDI spectra.",
+        "mesh_terms": "Drug Resistance, Microbial; Mass Spectrometry",
+        "relevance_score": 82
+      },
+      "expected": {
+        "label": "relevant",
+        "min_confidence": 0.75
+      }
+    },
+    {
+      "case_id": "gold.label.maldi_ast_relevant",
+      "type": "screening_label",
+      "description": "MALDI AST metadata is labeled relevant after acronym expansion.",
+      "query": "MALDI AST",
+      "candidate": {
+        "provider": "openalex",
+        "title": "MALDI-TOF antimicrobial susceptibility testing for bloodstream isolates",
+        "source_for_gate": "10.1000/gold-label-maldi-ast",
+        "doi": "10.1000/gold-label-maldi-ast",
+        "abstract": "Rapid AST from mass spectrometry predicts antibiotic susceptibility in clinical bacterial isolates.",
+        "concepts": "clinical microbiology; mass spectrometry",
+        "relevance_score": 72
+      },
+      "expected": {
+        "label": "relevant",
+        "min_confidence": 0.85
+      }
+    },
+    {
+      "case_id": "gold.label.esbl_cre_relevant",
+      "type": "screening_label",
+      "description": "ESBL CRE surveillance metadata is labeled relevant.",
+      "query": "ESBL CRE surveillance",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Surveillance of ESBL-producing and carbapenem-resistant Enterobacteriaceae",
+        "source_for_gate": "10.1000/gold-label-esbl-cre",
+        "doi": "10.1000/gold-label-esbl-cre",
+        "abstract": "Clinical microbiology surveillance tracks extended-spectrum beta-lactamase and CRE isolates.",
+        "mesh_terms": "Drug Resistance, Bacterial; Enterobacteriaceae Infections",
+        "relevance_score": 83
+      },
+      "expected": {
+        "label": "relevant",
+        "min_confidence": 0.85
+      }
+    },
+    {
+      "case_id": "gold.label.maldi_partial_maybe",
+      "type": "screening_label",
+      "description": "MALDI-only clinical spectra metadata is retained as maybe, not over-promoted to relevant.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "openalex",
+        "title": "MALDI spectra clustering in bacterial isolates",
+        "source_for_gate": "10.1000/gold-label-maybe-maldi",
+        "doi": "10.1000/gold-label-maybe-maldi",
+        "abstract": "Mass spectrometry spectra cluster bacterial isolates from clinical laboratories.",
+        "concepts": "clinical microbiology; mass spectrometry",
+        "relevance_score": 24
+      },
+      "expected": {
+        "label": "maybe",
+        "min_confidence": 0.65
+      }
+    },
+    {
+      "case_id": "gold.label.nlp_amr_irrelevant_for_maldi",
+      "type": "screening_label",
+      "description": "Abstract meaning representation metadata is irrelevant for a MALDI AMR biomedical query.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "AMR semantic graph parsing",
+        "source_for_gate": "https://arxiv.org/pdf/2401.33333",
+        "arxiv_id": "2401.33333",
+        "abstract": "Abstract meaning representation parsing for natural language semantic graphs.",
+        "concepts": "natural language processing",
+        "relevance_score": 4
+      },
+      "expected": {
+        "label": "irrelevant",
+        "min_confidence": 0.75
+      }
+    },
+    {
+      "case_id": "gold.label.math_language_relevant",
+      "type": "screening_label",
+      "description": "Formal language theory metadata is relevant for natural math-language prompts.",
+      "query": "what is the importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Mathematical linguistics and formal language theory",
+        "source_for_gate": "10.1000/gold-label-math-language",
+        "doi": "10.1000/gold-label-math-language",
+        "abstract": "Syntax, grammars, algebra, and automata provide mathematical models of natural language.",
+        "concepts": "formal language theory; mathematical linguistics",
+        "relevance_score": 63
+      },
+      "expected": {
+        "label": "relevant",
+        "min_confidence": 0.85
+      }
+    },
+    {
+      "case_id": "gold.label.math_language_maybe",
+      "type": "screening_label",
+      "description": "Language and cognition metadata is a maybe for math-language prompts.",
+      "query": "what is the importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Language and cognition",
+        "source_for_gate": "10.1000/gold-label-language-cognition",
+        "doi": "10.1000/gold-label-language-cognition",
+        "abstract": "This study discusses language learning and symbolic reasoning.",
+        "concepts": "cognitive science; linguistics",
+        "relevance_score": 18
+      },
+      "expected": {
+        "label": "maybe",
+        "min_confidence": 0.65
+      }
+    },
+    {
+      "case_id": "gold.label.math_language_clinical_llm_irrelevant",
+      "type": "screening_label",
+      "description": "Clinical LLM metadata is irrelevant for a math-language scholarly prompt.",
+      "query": "what is the importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Large language models for clinical diagnosis",
+        "source_for_gate": "10.1000/gold-label-clinical-llm",
+        "doi": "10.1000/gold-label-clinical-llm",
+        "abstract": "Clinical patient benchmarks evaluate medical question answering.",
+        "concepts": "clinical medicine; large language models",
+        "relevance_score": 15
+      },
+      "expected": {
+        "label": "irrelevant",
+        "min_confidence": 0.70
+      }
+    },
+    {
+      "case_id": "gold.label.off_topic_irrelevant",
+      "type": "screening_label",
+      "description": "Off-topic finance metadata is labeled irrelevant for MALDI AMR.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Graph neural networks for financial fraud detection",
+        "source_for_gate": "10.1000/gold-label-irrelevant",
+        "doi": "10.1000/gold-label-irrelevant",
+        "abstract": "Payment network anomaly detection for fraudulent transactions.",
+        "concepts": "finance; anomaly detection",
+        "relevance_score": 5
+      },
+      "expected": {
+        "label": "irrelevant",
+        "min_confidence": 0.75
+      }
+    }
+  ]
+}

@@ -1,0 +1,541 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "case_id": "real_smoke.maldi_amr.01",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: general antibiotic prescribing ML is not relevant to MALDI AMR.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Battling Antibiotic Resistance: Can Machine Learning Improve Prescribing?",
+        "source_for_gate": "https://arxiv.org/pdf/1906.03044v1",
+        "arxiv_id": "1906.03044v1",
+        "abstract": "Machine learning predicts urinary tract infection test outcomes and policies to improve antibiotic prescribing in primary care.",
+        "relevance_score": 63
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.maldi_amr.02",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: antimicrobial resistance proteins are relevant AMR background.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Small antimicrobial resistance proteins (SARPs): Small proteins conferring antimicrobial resistance",
+        "source_for_gate": "https://arxiv.org/pdf/2310.17905v1",
+        "arxiv_id": "2310.17905v1",
+        "abstract": "Small proteins can confer resistance to antimicrobial compounds and antibiotics; the review consolidates knowledge on antimicrobial resistance proteins.",
+        "relevance_score": 57
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.maldi_amr.03",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: MALDI chemistry without antimicrobial resistance is irrelevant.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "MALDI-TOF and Quantum Chemical Study of Non-stoichiometric Tantalum Oxychloride Clusters",
+        "source_for_gate": "https://arxiv.org/pdf/1912.09801v1",
+        "arxiv_id": "1912.09801v1",
+        "abstract": "MALDI-TOF spectroscopy and quantum chemical calculations study tantalum oxychloride clusters and thermodynamic stability.",
+        "relevance_score": 57
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.maldi_amr.04",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: MRI susceptibility mapping is not antimicrobial susceptibility.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Robust Quantitative Susceptibility Mapping via Approximate Message Passing with Parameter Estimation",
+        "source_for_gate": "https://arxiv.org/pdf/2207.14709v3",
+        "arxiv_id": "2207.14709v3",
+        "abstract": "Quantitative susceptibility mapping recovers magnetic susceptibility maps using approximate message passing in simulated and in vivo MRI datasets.",
+        "relevance_score": 45
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.maldi_amr.05",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: topological susceptibility in lattice physics is irrelevant.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Short distance singularities and automatic O(a) improvement: the cases of the chiral condensate and the topological susceptibility",
+        "source_for_gate": "https://arxiv.org/pdf/1412.0456v2",
+        "arxiv_id": "1412.0456v2",
+        "doi": "10.1007/JHEP04(2015)048",
+        "abstract": "Lattice correlators, chiral condensate, topological susceptibility, Wilson twisted mass fermions, and automatic improvement.",
+        "relevance_score": 41
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.maldi_amr.06",
+      "type": "screening_label",
+      "description": "MALDI AMR smoke review: superconducting magnetic susceptibility is irrelevant.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Investigation of fundamental and higher harmonic AC magnetic susceptibility of FeSe0.5Te0.5 Superconductor",
+        "source_for_gate": "https://arxiv.org/pdf/1901.08336v2",
+        "arxiv_id": "1901.08336v2",
+        "abstract": "Magnetic susceptibility of a superconducting sample is measured across temperature, AC magnetic field, and frequency.",
+        "relevance_score": 37
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.esbl_cre.01",
+      "type": "screening_label",
+      "description": "ESBL CRE smoke review: clinical uropathogen resistance surveillance is relevant.",
+      "query": "ESBL CRE surveillance",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Prevalence and Resistance Patterns of Uropathogens in Critically Ill Patients at a Tertiary Care Hospital in Tehran: Implications for Antimicrobial Stewardship in Developing Countries.",
+        "source_for_gate": "10.1177/10766294251384089",
+        "doi": "10.1177/10766294251384089",
+        "pmid": "41022527",
+        "journal": "Microbial drug resistance",
+        "abstract": "Prevalence and resistance patterns of uropathogens in critically ill patients support antimicrobial stewardship and clinical surveillance.",
+        "relevance_score": 57
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.esbl_cre.02",
+      "type": "screening_label",
+      "description": "ESBL CRE smoke review: basic TEM-1 beta-lactamase landscape without surveillance is irrelevant.",
+      "query": "ESBL CRE surveillance",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Coevolutionary landscape inference and the context-dependence of mutations in beta-lactamase TEM-1",
+        "source_for_gate": "https://arxiv.org/pdf/1510.03224v1",
+        "arxiv_id": "1510.03224v1",
+        "doi": "10.1093/molbev/msv211",
+        "abstract": "Statistical analysis of homologs estimates mutational landscapes of beta-lactamase TEM-1 and antibiotic resistance effects.",
+        "relevance_score": 39
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.esbl_cre.03",
+      "type": "screening_label",
+      "description": "ESBL CRE smoke review: aviation communication/navigation/surveillance is irrelevant.",
+      "query": "ESBL CRE surveillance",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "5G Integrated Communications, Navigation, and Surveillance: A Vision and Future Research Perspectives",
+        "source_for_gate": "https://arxiv.org/pdf/2502.13015v1",
+        "arxiv_id": "2502.13015v1",
+        "abstract": "5G communication, navigation, and surveillance for air traffic management and advanced air mobility.",
+        "relevance_score": 5
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.esbl_cre.04",
+      "type": "screening_label",
+      "description": "ESBL CRE smoke review: tactical video surveillance anomaly detection is irrelevant.",
+      "query": "ESBL CRE surveillance",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "WSCIF: A Weakly-Supervised Color Intelligence Framework for Tactical Anomaly Detection in Surveillance Keyframes",
+        "source_for_gate": "https://arxiv.org/pdf/2505.09129v1",
+        "arxiv_id": "2505.09129v1",
+        "abstract": "Unsupervised clustering and RGB histogram modeling detect anomalous frames in tactical surveillance video clips.",
+        "relevance_score": 5
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.01",
+      "type": "screening_label",
+      "description": "Math-language smoke review: frequency effects in language processing remains borderline.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "FREQUENCY EFFECTS IN LANGUAGE PROCESSING",
+        "source_for_gate": "10.1017/s0272263102002024",
+        "doi": "10.1017/s0272263102002024",
+        "journal": "Studies in Second Language Acquisition",
+        "abstract": "Frequency effects in phonology, reading, syntax, language comprehension, language acquisition, and usage-based linguistics.",
+        "concepts": "Linguistics; Language acquisition; Syntax; Grammar; Natural language processing",
+        "relevance_score": 71
+      },
+      "expected": {
+        "label": "maybe"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.02",
+      "type": "screening_label",
+      "description": "Math-language smoke review: NLP multiple-choice generation is relevant to language methods.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "An Automated Multiple-Choice Question Generation Using Natural Language Processing Techniques",
+        "source_for_gate": "https://arxiv.org/pdf/2103.14757v1",
+        "arxiv_id": "2103.14757v1",
+        "abstract": "Natural language processing techniques generate multiple-choice questions from text using computational linguistic methods.",
+        "relevance_score": 19
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.03",
+      "type": "screening_label",
+      "description": "Math-language smoke review: ELIZA is relevant to computational language.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "ELIZA-a computer program for the study of natural language communication between man and machine",
+        "source_for_gate": "10.1145/365153.365168",
+        "doi": "10.1145/365153.365168",
+        "abstract": "A computer program studies natural language communication between humans and machines using computational language processing.",
+        "concepts": "Natural language; Computer science; Linguistics",
+        "relevance_score": 27
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.04",
+      "type": "screening_label",
+      "description": "Math-language smoke review: language universals and diversity remains borderline.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "openalex",
+        "title": "The myth of language universals: Language diversity and its importance for cognitive science",
+        "source_for_gate": "10.1017/s0140525x0999094x",
+        "doi": "10.1017/s0140525x0999094x",
+        "abstract": "Typology and descriptive linguistics show structural diversity in language, syntax, grammar, and cognitive science.",
+        "concepts": "Linguistics; Grammar; Syntax; Cognitive science; Natural language",
+        "relevance_score": 45
+      },
+      "expected": {
+        "label": "maybe"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.05",
+      "type": "screening_label",
+      "description": "Math-language smoke review: morphological processing of a language is relevant.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Towards the Study of Morphological Processing of the Tangkhul Language",
+        "source_for_gate": "https://arxiv.org/pdf/2006.16212v1",
+        "arxiv_id": "2006.16212v1",
+        "abstract": "Morphological processing of a natural language uses an unsupervised approach and corpus-based morpheme identification.",
+        "relevance_score": 15
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.06",
+      "type": "screening_label",
+      "description": "Math-language smoke review: EHR clinical NLP is wrong-domain for math-language.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "An Open Natural Language Processing Development Framework for EHR-based Clinical Research",
+        "source_for_gate": "https://arxiv.org/pdf/2110.10780v3",
+        "arxiv_id": "2110.10780v3",
+        "abstract": "Natural language processing framework for electronic health records, clinical research, patients, and COVID cohorts.",
+        "relevance_score": 39
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.07",
+      "type": "screening_label",
+      "description": "Math-language smoke review: machine learning in applied linguistics is relevant.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Machine Learning and Applied Linguistics",
+        "source_for_gate": "https://arxiv.org/pdf/1803.09103v1",
+        "arxiv_id": "1803.09103v1",
+        "doi": "10.1002/9781405198431.wbeal1486",
+        "abstract": "Machine learning methods and applications for applied linguistics and language learning.",
+        "relevance_score": 9
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.08",
+      "type": "screening_label",
+      "description": "Math-language smoke review: Bayesian statistics for linguistic research is relevant.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Statistical methods for linguistic research: Foundational Ideas - Part II",
+        "source_for_gate": "https://arxiv.org/pdf/1602.00245v1",
+        "arxiv_id": "1602.00245v1",
+        "doi": "10.1111/lnc3.12207",
+        "abstract": "Bayesian data analysis and statistical methods for linguistics, psycholinguistics, and cognitive science.",
+        "relevance_score": 9
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.09",
+      "type": "screening_label",
+      "description": "Math-language smoke review: frequentist statistics for linguistic research is relevant.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Statistical methods for linguistic research: Foundational Ideas - Part I",
+        "source_for_gate": "https://arxiv.org/pdf/1601.01126v2",
+        "arxiv_id": "1601.01126v2",
+        "doi": "10.1111/lnc3.12201",
+        "abstract": "Statistical hypothesis testing, p-values, power, and psycholinguistics and linguistics research methods.",
+        "relevance_score": 9
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.math_language.10",
+      "type": "screening_label",
+      "description": "Math-language smoke review: NLP relies on linguistics is relevant.",
+      "query": "importance of math in language",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Natural Language Processing RELIES on Linguistics",
+        "source_for_gate": "https://arxiv.org/pdf/2405.05966v5",
+        "arxiv_id": "2405.05966v5",
+        "abstract": "Natural language processing relies on linguistic theory, grammar, syntax, semantics, and language analysis.",
+        "relevance_score": 35
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.01",
+      "type": "screening_label",
+      "description": "Clinical smoke review: neonatal gram-negative infection paper is clinically relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Clinical Characteristics and Early Evolution of Neonates with Perinatal Gram-Negative Bacterial Infections.",
+        "source_for_gate": "10.3390/children12121692",
+        "doi": "10.3390/children12121692",
+        "pmid": "41462832",
+        "pmcid": "PMC12731392",
+        "journal": "Children",
+        "abstract": "Clinical characteristics of neonates with gram-negative bacterial infections and early infection evolution.",
+        "relevance_score": 41
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.02",
+      "type": "screening_label",
+      "description": "Clinical smoke review: pediatric ICU antimicrobial stewardship ML benchmark is relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Benchmarking Machine Learning Architectures for Antimicrobial Stewardship in Pediatric ICUs",
+        "source_for_gate": "https://arxiv.org/pdf/2605.22611v1",
+        "arxiv_id": "2605.22611v1",
+        "abstract": "Antimicrobial stewardship in pediatric intensive care units, antibiotic de-escalation, discontinuation, and clinical decision support.",
+        "relevance_score": 61
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.03",
+      "type": "screening_label",
+      "description": "Clinical smoke review: surviving sepsis guidelines are relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021",
+        "source_for_gate": "10.1007/s00134-021-06506-y",
+        "doi": "10.1007/s00134-021-06506-y",
+        "pmid": "34599691",
+        "journal": "Intensive Care Medicine",
+        "abstract": "Evidence-based clinical guidelines for management of sepsis and septic shock, resuscitation, infection, and ICU care.",
+        "concepts": "Sepsis; Septic shock; Intensive care medicine; Evidence-based medicine",
+        "relevance_score": 17
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.04",
+      "type": "screening_label",
+      "description": "Clinical smoke review: AMR simulator package is irrelevant to sepsis/procalcitonin clinical stewardship.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "abx_amr_simulator: A simulation environment for antibiotic prescribing policy optimization under antimicrobial resistance",
+        "source_for_gate": "https://arxiv.org/pdf/2603.11369v1",
+        "arxiv_id": "2603.11369v1",
+        "abstract": "Python simulation package, reinforcement learning environment, Gymnasium API, reward functions, and antibiotic resistance dynamics.",
+        "relevance_score": 61
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.05",
+      "type": "screening_label",
+      "description": "Clinical smoke review: generic antibiotic transmission model is irrelevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Antibiotics, duration of infectiousness, and transmission of disease",
+        "source_for_gate": "https://arxiv.org/pdf/2001.06948v1",
+        "arxiv_id": "2001.06948v1",
+        "abstract": "A deterministic within-host model studies antibiotic treatment, infectiousness duration, transmission, and disease spread.",
+        "relevance_score": 61
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.06",
+      "type": "screening_label",
+      "description": "Clinical smoke review: pyelonephritis biomarker systematic review is relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Clinical Characteristics, Microbiological Spectrum, Biomarkers, and Imaging Insights in Acute Pyelonephritis and Its Complicated Forms-A Systematic Review.",
+        "source_for_gate": "10.3390/medicina62010222",
+        "doi": "10.3390/medicina62010222",
+        "pmid": "41597508",
+        "pmcid": "PMC12844392",
+        "journal": "Medicina",
+        "mesh_terms": "Humans; Acute Disease; Biomarkers; Pyelonephritis",
+        "abstract": "Systematic review of clinical characteristics, microbiological spectrum, biomarkers, and complicated infection.",
+        "relevance_score": 31
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.07",
+      "type": "screening_label",
+      "description": "Clinical smoke review: procalcitonin in sepsis is relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Plasma procalcitonin and C-reactive protein concentrations in dogs with bacterial sepsis and non-infectious systemic inflammatory response syndrome.",
+        "source_for_gate": "10.3389/fvets.2025.1609020",
+        "doi": "10.3389/fvets.2025.1609020",
+        "pmid": "40607352",
+        "pmcid": "PMC12213344",
+        "journal": "Frontiers in veterinary science",
+        "abstract": "Procalcitonin is a biomarker of bacterial infections and antimicrobial treatment; study compares dogs with sepsis and noninfectious SIRS.",
+        "relevance_score": 59
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.08",
+      "type": "screening_label",
+      "description": "Clinical smoke review: generic deep learning sepsis prediction without procalcitonin/stewardship is irrelevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Predicting sepsis in multi-site, multi-national intensive care cohorts using deep learning",
+        "source_for_gate": "https://arxiv.org/pdf/2107.05230v1",
+        "arxiv_id": "2107.05230v1",
+        "abstract": "A deep self-attention model predicts sepsis in ICU cohorts using harmonized clinical databases and machine learning.",
+        "relevance_score": 53
+      },
+      "expected": {
+        "label": "irrelevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.09",
+      "type": "screening_label",
+      "description": "Clinical smoke review: sepsis biomarker commentary is relevant.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Biomarkers in sepsis: Less is more? Yes, it is.",
+        "source_for_gate": "10.1016/j.iccn.2025.104243",
+        "doi": "10.1016/j.iccn.2025.104243",
+        "pmid": "41086639",
+        "journal": "Intensive & critical care nursing",
+        "abstract": "Biomarkers in sepsis and critical care nursing.",
+        "relevance_score": 23
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    },
+    {
+      "case_id": "real_smoke.sepsis_procalcitonin.10",
+      "type": "screening_label",
+      "description": "Clinical smoke review: early sepsis prediction is relevant enough for the reviewed query.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "Multi-Subset Approach to Early Sepsis Prediction",
+        "source_for_gate": "https://arxiv.org/pdf/2304.06384v1",
+        "arxiv_id": "2304.06384v1",
+        "abstract": "Machine learning predicts sepsis onset six hours before suspected clinically and supports earlier antibiotic treatment.",
+        "relevance_score": 21
+      },
+      "expected": {
+        "label": "relevant"
+      }
+    }
+  ]
+}
