@@ -1,56 +1,56 @@
-# Jarvis Research
+# Friday Research
 
-Jarvis Research is a scholarly-only literature scanner and evidence report generator. It searches academic indexes, screens results, reads safe open-access PDFs, extracts page-anchored evidence, and writes cited report packages.
+Friday Research is a scholarly-only literature scanner and evidence report generator. It searches academic indexes, screens results, reads safe open-access PDFs, extracts page-anchored evidence, and writes cited report packages.
 
-It is not a general web crawler. By default, Jarvis blocks GitHub, code archives, supplementary artifacts, and arbitrary web downloads. The scanner is allowed to read papers, not execute or trust content from the papers.
+It is not a general web crawler. By default, Friday blocks GitHub, code archives, supplementary artifacts, and arbitrary web downloads. The scanner is allowed to read papers, not execute or trust content from the papers.
 
 ## Quick Start
 
 Clone the repository:
 
 ```bash
-git clone https://github.com/byungkim113/JarvisResearch.git
-cd JarvisResearch
+git clone https://github.com/Richard-Y-W/Friday.git
+cd Friday
 ```
 
-Run Jarvis directly from the repo:
+Run Friday directly from the repo:
 
 ```bash
-python3 -m jarvis_research --help
-python3 -m jarvis_research /settings
+python3 -m friday --help
+python3 -m friday /settings
 ```
 
 Start the interactive shell:
 
 ```bash
-python3 -m jarvis_research
+python3 -m friday
 ```
 
 Inside the shell:
 
 ```text
-jarvis> /settings
-jarvis> tell me about MALDI AMR
-jarvis> jarvis tell me about the importance of math in language
-jarvis> /exit
+friday> /settings
+friday> tell me about MALDI AMR
+friday> friday tell me about the importance of math in language
+friday> /exit
 ```
 
-## Install The `jarvis` Command
+## Install The `friday` Command
 
 For day-to-day use, create a small launcher in `~/.local/bin`:
 
 ```bash
 mkdir -p ~/.local/bin
-cat > ~/.local/bin/jarvis <<EOF
+cat > ~/.local/bin/friday <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
 REPO="$PWD"
 export PYTHONPATH="\${REPO}\${PYTHONPATH:+:\${PYTHONPATH}}"
 
-exec /usr/bin/env python3 -m jarvis_research "\$@"
+exec /usr/bin/env python3 -m friday "\$@"
 EOF
-chmod +x ~/.local/bin/jarvis
+chmod +x ~/.local/bin/friday
 ```
 
 Make sure `~/.local/bin` is on your `PATH`. For zsh:
@@ -62,7 +62,7 @@ echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.zshrc
 Open a new terminal, then run:
 
 ```bash
-jarvis
+friday
 ```
 
 ## Reports
@@ -70,13 +70,13 @@ jarvis
 Interactive natural-language queries write report packages under:
 
 ```text
-.jarvis/reports/<query-slug>-<timestamp>/
+.friday/reports/<query-slug>-<timestamp>/
 ```
 
 They also copy the reader-facing PDF to:
 
 ```text
-~/Desktop/JarvisReports/<query-slug>-<timestamp>.pdf
+~/Desktop/FridayReports/<query-slug>-<timestamp>.pdf
 ```
 
 Each package includes:
@@ -94,21 +94,21 @@ Each package includes:
 Show current defaults:
 
 ```bash
-jarvis /settings
+friday /settings
 ```
 
 Update a default:
 
 ```bash
-jarvis /settings set research.limit 100
-jarvis /settings set research.deep_read_limit 5
+friday /settings set research.limit 100
+friday /settings set research.deep_read_limit 5
 ```
 
 The same commands work inside the interactive shell:
 
 ```text
-jarvis> /settings
-jarvis> /settings set research.limit 100
+friday> /settings
+friday> /settings set research.limit 100
 ```
 
 ## Token Use
@@ -119,11 +119,11 @@ The default auto-label provider is heuristic, so it does not use LLM tokens:
 auto_label.provider: heuristic
 ```
 
-If you switch to an LLM provider, Jarvis will use the API key configured in `auto_label.api_key_env`, which defaults to `OPENAI_API_KEY`.
+If you switch to an LLM provider, Friday will use the API key configured in `auto_label.api_key_env`, which defaults to `OPENAI_API_KEY`.
 
 ## Safety Model
 
-Jarvis enforces a scholarly source policy:
+Friday enforces a scholarly source policy:
 
 - allowed: DOI, arXiv PDFs, PubMed/PMC, OpenAlex open-access locations, and known academic PDF hosts
 - blocked by default: GitHub, code repositories, archives, drive links, arbitrary websites, and supplementary/code artifacts

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from jarvis_research.screening import build_llm_review_queue
-from jarvis_research.storage import BatchItemRecord, ScreeningLabelRecord
+from friday.screening import build_llm_review_queue
+from friday.storage import BatchItemRecord, ScreeningLabelRecord
 
 
 LABEL_REVIEW_FILTERS = ("relevant", "maybe", "irrelevant", "human", "agent", "unlabeled")

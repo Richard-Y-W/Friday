@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 import secrets
+from typing import Iterator
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.source_policy import SourceDecision, evaluate_source
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.source_policy import SourceDecision, evaluate_source
 
 
 SCREENING_LABEL_CHOICES = ("relevant", "maybe", "irrelevant")
@@ -141,7 +143,7 @@ class ScreeningLabelRecord:
     updated_at: str
 
 
-class JarvisStore:
+class FridayStore:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -919,10 +921,19 @@ class JarvisStore:
             self._ensure_batch_item_columns(conn)
             self._ensure_screening_label_columns(conn)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        # Close the connection on exit so the SQLite file handle is released.
+        # A bare `with sqlite3.connect(...)` only scopes the transaction, not
+        # the handle, which leaks connections and blocks file cleanup on
+        # Windows (and invites "database is locked" under concurrent writers).
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _ensure_batch_item_columns(self, conn: sqlite3.Connection) -> None:
         existing = _column_names(conn, "batch_items")

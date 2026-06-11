@@ -5,12 +5,12 @@ from tempfile import TemporaryDirectory
 from typing import Any
 import json
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.query_planning import plan_query
-from jarvis_research.relevance import rank_candidates
-from jarvis_research.screening import auto_label_batch_items
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.query_planning import plan_query
+from friday.relevance import rank_candidates
+from friday.screening import auto_label_batch_items
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 GOLD_CORPUS_PATH = Path(__file__).resolve().parent.parent / "eval_corpus" / "gold_cases.json"
@@ -46,7 +46,7 @@ def build_real_smoke_eval_cases(path: Path = REAL_SMOKE_CORPUS_PATH):
 
 
 def _build_eval_cases(path: Path, *, suite: str, loader):
-    from jarvis_research.eval_suite import EvalCase
+    from friday.eval_suite import EvalCase
 
     return [
         EvalCase(
@@ -158,7 +158,7 @@ def _run_ranking_case(case: dict[str, Any]) -> tuple[bool, str]:
 
 def _run_screening_label_case(case: dict[str, Any]) -> tuple[bool, str]:
     with TemporaryDirectory() as tmp:
-        store = JarvisStore(Path(tmp) / "jarvis.db")
+        store = FridayStore(Path(tmp) / "friday.db")
         batch = store.create_batch(query=case["query"], limit=1, mode="gold_eval")
         candidate = _candidate_from_mapping(case["candidate"])
         store.add_batch_item(

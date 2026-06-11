@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import urlopen
 import xml.etree.ElementTree as ET
 
-from jarvis_research.query_planning import QueryPlan, plan_query, render_acronym_expansions
+from friday.query_planning import QueryPlan, plan_query, render_acronym_expansions
 
 
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}

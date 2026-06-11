@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.corpus_routing import route_corpus_query
+from friday.corpus_routing import route_corpus_query
 
 
 class CorpusRoutingTests(unittest.TestCase):

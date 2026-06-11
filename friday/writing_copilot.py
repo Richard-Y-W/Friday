@@ -162,7 +162,7 @@ def render_evidence_report_markdown(payload: dict[str, Any]) -> str:
     claims_by_type = payload.get("claims_by_type", {})
     audit = payload.get("audit_summary") or build_writing_audit_summary(payload)
     lines = [
-        "# Jarvis Evidence Report",
+        "# Friday Evidence Report",
         "",
         _source_line(payload),
         "",
@@ -616,7 +616,7 @@ def _executive_summary_lines(payload: dict[str, Any], audit: dict[str, Any]) -> 
     references = payload.get("paper_references", [])
     lines = [
         (
-            f"- Jarvis screened {source.get('screened_count', 0) or 0} records, "
+            f"- Friday screened {source.get('screened_count', 0) or 0} records, "
             f"blocked {source.get('blocked_count', 0) or 0}, and deep-read "
             f"{source.get('deep_read_count', 0) or 0} safe scholarly PDFs."
         ),

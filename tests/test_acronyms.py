@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.acronyms import detect_acronyms, resolve_acronyms
+from friday.acronyms import detect_acronyms, resolve_acronyms
 
 
 class AcronymResolverTests(unittest.TestCase):

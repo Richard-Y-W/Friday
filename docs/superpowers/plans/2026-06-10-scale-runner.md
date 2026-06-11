@@ -6,14 +6,14 @@
 
 **Architecture:** Reuse the existing scholarly discovery, source gate, ranking, auto-labeling, deep-read, report, passport, and rejection-log modules. Add a small persistent run ledger in SQLite and a CLI orchestration layer that records status transitions and can resume an existing run by ID.
 
-**Tech Stack:** Python standard library, SQLite, `unittest`, existing JarvisResearch modules.
+**Tech Stack:** Python standard library, SQLite, `unittest`, existing Friday modules.
 
 ---
 
 ### Task 1: Research Run Storage
 
 **Files:**
-- Modify: `jarvis_research/storage.py`
+- Modify: `friday/storage.py`
 - Test: `tests/test_storage.py`
 
 - [x] **Step 1: Write the failing test**
@@ -23,7 +23,7 @@ Add a storage test that creates a research run, attaches a batch, updates status
 - [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m unittest tests.test_storage.StorageTests.test_creates_and_updates_research_run_ledger -v`
-Expected: FAIL because `JarvisStore.create_research_run` does not exist.
+Expected: FAIL because `FridayStore.create_research_run` does not exist.
 
 - [x] **Step 3: Write minimal implementation**
 
@@ -37,7 +37,7 @@ Expected: PASS.
 ### Task 2: Run Summary Artifact
 
 **Files:**
-- Modify: `jarvis_research/research_artifacts.py`
+- Modify: `friday/research_artifacts.py`
 - Test: `tests/test_research_artifacts.py`
 
 - [x] **Step 1: Write the failing test**
@@ -61,7 +61,7 @@ Expected: PASS.
 ### Task 3: `research-run` CLI
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write the failing tests**

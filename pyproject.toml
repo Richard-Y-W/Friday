@@ -3,10 +3,10 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jarvis-research"
+name = "friday-research"
 version = "0.1.0"
-description = "Safe scholarly scanning and reporting CLI for Jarvis Research."
+description = "Safe scholarly scanning and reporting CLI for Friday Research."
 requires-python = ">=3.9"
 
 [project.scripts]
-jarvis = "jarvis_research.cli:main"
+friday = "friday.cli:main"

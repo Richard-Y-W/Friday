@@ -6,11 +6,11 @@ Add a CLI-first feedback loop that measures agent screening labels against human
 
 ## Scope
 
-This feature stays inside the scholarly scanner. It does not train a model, call an LLM, browse the web, or execute downloaded artifacts. It uses labels already stored in JarvisResearch batches.
+This feature stays inside the scholarly scanner. It does not train a model, call an LLM, browse the web, or execute downloaded artifacts. It uses labels already stored in Friday batches.
 
 ## Design
 
-Create a focused `jarvis_research.label_eval` module that joins batch items with screening labels and reads prior agent label evidence from each human-labeled row. Because a human override replaces the current row, the evaluator will parse previous agent values from either label signals or the human label note when present. The supported note format is simple and explicit: `agent=relevant confidence=0.84`. If no prior agent value exists, the human label still contributes to human label counts but not to agent-vs-human accuracy.
+Create a focused `friday.label_eval` module that joins batch items with screening labels and reads prior agent label evidence from each human-labeled row. Because a human override replaces the current row, the evaluator will parse previous agent values from either label signals or the human label note when present. The supported note format is simple and explicit: `agent=relevant confidence=0.84`. If no prior agent value exists, the human label still contributes to human label counts but not to agent-vs-human accuracy.
 
 The evaluator returns a dictionary with:
 
@@ -22,11 +22,11 @@ The evaluator returns a dictionary with:
 - high-confidence mistakes
 - threshold recommendations derived from confidence distributions
 
-Extend `jarvis labels` with an `eval` action:
+Extend `friday labels` with an `eval` action:
 
 ```bash
-jarvis labels eval --latest
-jarvis labels eval --latest --format json
+friday labels eval --latest
+friday labels eval --latest --format json
 ```
 
 Text output should be compact and operational: counts, comparable totals, threshold recommendations, and top disagreements. JSON output should expose the full structured report for later dashboards.

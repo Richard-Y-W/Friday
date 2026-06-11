@@ -2,17 +2,17 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.cited_report import render_cited_evidence_report
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.cited_report import render_cited_evidence_report
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class CitedEvidenceReportTests(unittest.TestCase):
     def test_renders_paper_references_and_page_citations(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -83,7 +83,7 @@ class CitedEvidenceReportTests(unittest.TestCase):
 
     def test_reports_when_no_evidence_is_available(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             store.add_batch_item(
                 batch.batch_id,
@@ -99,7 +99,7 @@ class CitedEvidenceReportTests(unittest.TestCase):
 
     def test_filters_noisy_legacy_evidence_from_report(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             candidate = Candidate(
                 provider="openalex",

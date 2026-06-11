@@ -13,8 +13,8 @@
 ### Task 1: Settings And CLI Provider Selection
 
 **Files:**
-- Modify: `jarvis_research/settings.py`
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/settings.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_settings.py`
 - Test: `tests/test_cli.py`
 
@@ -26,8 +26,8 @@
 ### Task 2: LLM Label Provider
 
 **Files:**
-- Create: `jarvis_research/llm_labeling.py`
-- Modify: `jarvis_research/screening.py`
+- Create: `friday/llm_labeling.py`
+- Modify: `friday/screening.py`
 - Test: `tests/test_llm_labeling.py`
 - Test: `tests/test_screening.py`
 
@@ -40,7 +40,7 @@
 ### Task 3: Docs And Verification
 
 **Files:**
-- Modify: `docs/specs/2026-06-07-jarvis-scanner-agent-design.md`
+- Modify: `docs/specs/2026-06-07-friday-scanner-agent-design.md`
 
 - [x] Document that LLM labeling is optional, token-using, JSON-only, metadata-only, and disabled by default.
 - [x] Run `python3 -m unittest discover -v`.

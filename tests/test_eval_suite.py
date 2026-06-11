@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.eval_suite import EvalCase, run_eval_suite, render_eval_report_text
+from friday.eval_suite import EvalCase, run_eval_suite, render_eval_report_text
 
 
 class EvalSuiteTests(unittest.TestCase):
@@ -64,7 +64,7 @@ class EvalSuiteTests(unittest.TestCase):
         report = run_eval_suite("safety")
         text = render_eval_report_text(report)
 
-        self.assertIn("Jarvis Eval Suite", text)
+        self.assertIn("Friday Eval Suite", text)
         self.assertIn("Suite: safety", text)
         self.assertIn("Status: pass", text)
         self.assertIn("safety.github_pdf_blocked", text)

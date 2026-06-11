@@ -6,14 +6,14 @@
 
 **Architecture:** Extend the existing `research-run` CLI orchestration without changing discovery, source gating, ranking, labeling, or PDF ingestion behavior. Reuse the existing SQLite run ledger and artifact builders, adding only CLI routing and deterministic output path helpers.
 
-**Tech Stack:** Python standard library, SQLite, `unittest`, existing JarvisResearch modules.
+**Tech Stack:** Python standard library, SQLite, `unittest`, existing Friday modules.
 
 ---
 
 ### Task 1: List Research Runs
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write the failing test**
@@ -37,8 +37,8 @@ Expected: PASS.
 ### Task 2: Resume Latest Run
 
 **Files:**
-- Modify: `jarvis_research/storage.py`
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/storage.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_storage.py`
 - Test: `tests/test_cli.py`
 
@@ -53,7 +53,7 @@ Expected: FAIL because `latest_research_run` and `--latest` do not exist.
 
 - [x] **Step 3: Write minimal implementation**
 
-Add `JarvisStore.latest_research_run()`, add `--latest` to `research-run`, and route it through the same resume path as `--resume-run`.
+Add `FridayStore.latest_research_run()`, add `--latest` to `research-run`, and route it through the same resume path as `--resume-run`.
 
 - [x] **Step 4: Run tests to verify they pass**
 
@@ -63,12 +63,12 @@ Expected: PASS.
 ### Task 3: Automatic Run Artifact Folder
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write the failing test**
 
-Add a CLI test that runs `research-run` without `--output`, `--passport`, `--rejection-log`, or `--run-summary`, then verifies files are written under `.jarvis/runs/<run_id>/`.
+Add a CLI test that runs `research-run` without `--output`, `--passport`, `--rejection-log`, or `--run-summary`, then verifies files are written under `.friday/runs/<run_id>/`.
 
 - [x] **Step 2: Run test to verify it fails**
 
@@ -78,10 +78,10 @@ Expected: FAIL because the command prints to stdout and does not create a run fo
 - [x] **Step 3: Write minimal implementation**
 
 Add a helper that builds default paths after the run ID exists:
-- `.jarvis/runs/<run_id>/report.<md|txt|json>`
-- `.jarvis/runs/<run_id>/passport.json`
-- `.jarvis/runs/<run_id>/rejection-log.json`
-- `.jarvis/runs/<run_id>/run-summary.json`
+- `.friday/runs/<run_id>/report.<md|txt|json>`
+- `.friday/runs/<run_id>/passport.json`
+- `.friday/runs/<run_id>/rejection-log.json`
+- `.friday/runs/<run_id>/run-summary.json`
 
 Use explicit CLI paths when provided.
 

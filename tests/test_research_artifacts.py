@@ -3,23 +3,23 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.research_artifacts import (
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.research_artifacts import (
     build_batch_passport,
     build_rejection_log,
     build_research_run_summary,
 )
-from jarvis_research.reporting import render_batch_report_json, render_batch_report_markdown
-from jarvis_research.screening import build_llm_review_queue
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.reporting import render_batch_report_json, render_batch_report_markdown
+from friday.screening import build_llm_review_queue
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class ResearchArtifactTests(unittest.TestCase):
     def test_batch_passport_records_query_policy_and_repro_lock(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=1000, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -39,7 +39,7 @@ class ResearchArtifactTests(unittest.TestCase):
                 note="human include",
             )
 
-            passport = build_batch_passport(store, batch.batch_id, data_dir=Path(tmp) / ".jarvis")
+            passport = build_batch_passport(store, batch.batch_id, data_dir=Path(tmp) / ".friday")
 
             self.assertEqual(passport["artifact_type"], "batch_passport")
             self.assertEqual(passport["batch"]["batch_id"], batch.batch_id)
@@ -47,14 +47,14 @@ class ResearchArtifactTests(unittest.TestCase):
             self.assertIn("MALDI antimicrobial resistance", passport["query_plan"]["expanded_queries"])
             self.assertEqual(passport["source_policy"]["blocked_by_default"], ["github", "code", "archives"])
             self.assertEqual(passport["repro_lock"]["stochasticity_declaration"], "Live scholarly APIs and LLM outputs are not byte-reproducible. This lock documents configuration, not deterministic replay.")
-            self.assertIn("jarvis_research_commit", passport["repro_lock"])
+            self.assertIn("friday_commit", passport["repro_lock"])
             self.assertEqual(passport["screening_labels"]["counts"]["relevant"], 1)
             self.assertEqual(passport["screening_labels"]["labels"][0]["source"], candidate.source_for_gate)
             self.assertEqual(passport["screening_labels"]["labels"][0]["note"], "human include")
 
     def test_rejection_log_records_blocked_sources_and_failed_pdfs(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             blocked_source = "https://github.com/example/repo/blob/main/paper.pdf"
             safe_source = "10.1038/example"
@@ -81,8 +81,8 @@ class ResearchArtifactTests(unittest.TestCase):
 
     def test_research_run_summary_records_status_counts_and_policy(self):
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             run = store.create_research_run(
                 query="MALDI AMR",
                 limit=1000,
@@ -151,8 +151,8 @@ class ResearchArtifactTests(unittest.TestCase):
 
     def test_run_artifacts_include_llm_review_queue(self):
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             run = store.create_research_run(
                 query="language math",
                 limit=2,
@@ -208,7 +208,7 @@ class ResearchArtifactTests(unittest.TestCase):
 
     def test_batch_report_contains_claim_support_audit(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             source = "10.1038/example"
             candidate = Candidate(

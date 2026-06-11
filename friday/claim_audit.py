@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from jarvis_research.cited_report import build_cited_evidence_data
-from jarvis_research.storage import JarvisStore
+from friday.cited_report import build_cited_evidence_data
+from friday.storage import FridayStore
 
 
-def build_claim_support_audit(store: JarvisStore, batch_id: str) -> dict[str, Any]:
+def build_claim_support_audit(store: FridayStore, batch_id: str) -> dict[str, Any]:
     cited = build_cited_evidence_data(store, batch_id)
     supported_claims: list[dict[str, Any]] = []
     missing_page_anchor: list[dict[str, Any]] = []

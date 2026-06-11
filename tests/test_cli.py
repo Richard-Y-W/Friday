@@ -5,17 +5,17 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.cli import main
-from jarvis_research.llm_labeling import LlmLabelResult
-from jarvis_research.pdf_ingestion import PdfIngestionResult
+from friday.discovery import Candidate
+from friday.cli import main
+from friday.llm_labeling import LlmLabelResult
+from friday.pdf_ingestion import PdfIngestionResult
 
 
 class CliTests(unittest.TestCase):
     def run_cli(self, args, tmp_path):
         out = io.StringIO()
         with redirect_stdout(out):
-            code = main([*args, "--data-dir", str(tmp_path / ".jarvis")])
+            code = main([*args, "--data-dir", str(tmp_path / ".friday")])
         return code, out.getvalue()
 
     def test_scan_prints_scan_id_and_report_command(self):
@@ -26,7 +26,7 @@ class CliTests(unittest.TestCase):
             code, output = self.run_cli(["scan", "https://arxiv.org/pdf/2401.12345"], Path(tmp))
             self.assertEqual(code, 0)
             self.assertIn("Scan ID: scan_", output)
-            self.assertIn("jarvis report scan_", output)
+            self.assertIn("friday report scan_", output)
 
     def test_query_scan_prints_batch_id(self):
         from pathlib import Path
@@ -36,7 +36,7 @@ class CliTests(unittest.TestCase):
             code, output = self.run_cli(["scan", "--query", "MALDI AMR", "--limit", "1000"], Path(tmp))
             self.assertEqual(code, 0)
             self.assertIn("Batch ID: batch_", output)
-            self.assertIn("jarvis report batch_", output)
+            self.assertIn("friday report batch_", output)
 
     def test_settings_show_and_set_research_defaults(self):
         from pathlib import Path
@@ -57,22 +57,22 @@ class CliTests(unittest.TestCase):
             self.assertIn("research.limit: 250", updated_output)
             self.assertIn("research.deep_read_limit: 10", updated_output)
 
-    def test_plain_jarvis_non_interactive_keeps_help_output(self):
+    def test_plain_friday_non_interactive_keeps_help_output(self):
         out = io.StringIO()
         with redirect_stdout(out):
             code = main([], force_interactive=False)
 
         output = out.getvalue()
         self.assertEqual(code, 2)
-        self.assertIn("usage: jarvis", output)
-        self.assertNotIn("Jarvis Research", output)
+        self.assertIn("usage: friday", output)
+        self.assertNotIn("Friday Research", output)
 
-    def test_plain_jarvis_interactive_shell_handles_settings_and_exit(self):
+    def test_plain_friday_interactive_shell_handles_settings_and_exit(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
@@ -84,13 +84,13 @@ class CliTests(unittest.TestCase):
             output = out.getvalue()
             self.assertEqual(code, 0)
             self.assertIn("\x1b[38;2;130;200;229m", output)
-            self.assertIn("\x1b[0m        jarvis research 1.0.0", output)
+            self.assertIn("\x1b[0m        friday research 1.0.0", output)
             self.assertIn("Paper scanner - cited PDF reports", output)
-            self.assertIn("jarvis>", output)
-            self.assertIn("Jarvis settings", output)
+            self.assertIn("friday>", output)
+            self.assertIn("Friday settings", output)
             self.assertIn("research.limit: 100", output)
 
-    def test_plain_jarvis_interactive_shell_prints_cyan_lens_splash_with_plain_title(self):
+    def test_plain_friday_interactive_shell_prints_cyan_lens_splash_with_plain_title(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
@@ -98,7 +98,7 @@ class CliTests(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
-                    ["--data-dir", str(Path(tmp) / ".jarvis")],
+                    ["--data-dir", str(Path(tmp) / ".friday")],
                     input_stream=io.StringIO("/exit\n"),
                     force_interactive=True,
                 )
@@ -107,8 +107,8 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("\x1b[38;2;130;200;229m", output)
             self.assertIn("▄███████▄", output)
-            self.assertIn("\x1b[0m        jarvis research 1.0.0", output)
-            self.assertNotIn("Jarvis Research v0.1.0", output)
+            self.assertIn("\x1b[0m        friday research 1.0.0", output)
+            self.assertNotIn("Friday Research v0.1.0", output)
             self.assertIn("Scholarly-only evidence assistant", output)
             self.assertIn("\x1b[0m", output)
 
@@ -142,7 +142,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -163,13 +163,13 @@ class CliTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            desktop_report_dir = Path(tmp) / "Desktop" / "JarvisReports"
+            data_dir = Path(tmp) / ".friday"
+            desktop_report_dir = Path(tmp) / "Desktop" / "FridayReports"
             out = io.StringIO()
-            with patch.dict(os.environ, {"JARVIS_DESKTOP_REPORT_DIR": str(desktop_report_dir)}), redirect_stdout(out):
+            with patch.dict(os.environ, {"FRIDAY_DESKTOP_REPORT_DIR": str(desktop_report_dir)}), redirect_stdout(out):
                 code = main(
                     ["--data-dir", str(data_dir)],
-                    input_stream=io.StringIO("jarvis tell me about MALDI AMR\n/exit\n"),
+                    input_stream=io.StringIO("friday tell me about MALDI AMR\n/exit\n"),
                     force_interactive=True,
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -226,7 +226,7 @@ class CliTests(unittest.TestCase):
                         "--limit",
                         "2",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                 )
@@ -297,7 +297,7 @@ class CliTests(unittest.TestCase):
                         "in",
                         "language",
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -307,7 +307,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(deep_read_sources, ["10.1038/language-math"])
             self.assertIn("Natural query: what is the importance of math in language", output)
-            self.assertIn("# Jarvis Batch Report", output)
+            self.assertIn("# Friday Batch Report", output)
             self.assertIn("Screening Labels", output)
 
     def test_query_scan_deep_reads_limited_safe_candidates(self):
@@ -370,7 +370,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -414,7 +414,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -484,7 +484,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -573,7 +573,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -604,7 +604,7 @@ class CliTests(unittest.TestCase):
             return candidates[:limit]
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
             first_out = io.StringIO()
             with redirect_stdout(first_out):
                 first_code = main(
@@ -693,7 +693,7 @@ class CliTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
             first_out = io.StringIO()
             with redirect_stdout(first_out):
                 first_code = main(
@@ -798,7 +798,7 @@ class CliTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
             first_out = io.StringIO()
             with redirect_stdout(first_out):
                 first_code = main(
@@ -904,7 +904,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
@@ -982,7 +982,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
@@ -1065,7 +1065,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             self.run_cli(["/settings", "set", "auto_label.provider", "llm"], tmp_path)
             self.run_cli(["/settings", "set", "auto_label.model", "gpt-test"], tmp_path)
             fake_client = FakeLlmClient()
@@ -1112,7 +1112,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             corpus_path = tmp_path / "corpus.json"
             corpus_path.write_text(
                 json.dumps(
@@ -1147,7 +1147,7 @@ class CliTests(unittest.TestCase):
                     [
                         "--data-dir",
                         str(data_dir),
-                        "jarvis",
+                        "friday",
                         "tell",
                         "me",
                         "about",
@@ -1163,17 +1163,17 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(discoverer_calls, [])
             self.assertIn("Natural query route: corpus", output)
-            self.assertIn("# Jarvis Corpus Report", output)
+            self.assertIn("# Friday Corpus Report", output)
             self.assertIn("Mathematical structure in natural language", output)
             self.assertNotIn("Batch ID:", output)
-            self.assertFalse((data_dir / "jarvis.db").exists())
+            self.assertFalse((data_dir / "friday.db").exists())
 
     def test_natural_query_write_outputs_evidence_bound_literature_review(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
         def fake_discoverer(query, limit):
-            self.assertEqual(query, "jarvis tell me about MALDI AMR")
+            self.assertEqual(query, "friday tell me about MALDI AMR")
             self.assertEqual(limit, 1)
             return [
                 Candidate(
@@ -1199,7 +1199,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -1224,7 +1224,7 @@ class CliTests(unittest.TestCase):
             with redirect_stdout(out):
                 code = main(
                     [
-                        "jarvis",
+                        "friday",
                         "tell",
                         "me",
                         "about",
@@ -1240,7 +1240,7 @@ class CliTests(unittest.TestCase):
                         "--write-mode",
                         "literature-review",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -1249,7 +1249,7 @@ class CliTests(unittest.TestCase):
             output = out.getvalue()
             self.assertEqual(code, 0)
             self.assertIn("Natural query route: scholarly", output)
-            self.assertIn("# Jarvis Batch Report", output)
+            self.assertIn("# Friday Batch Report", output)
             self.assertIn("Writing mode: literature-review", output)
             self.assertIn("# Evidence-Bound Literature Review Draft", output)
             self.assertIn("This draft uses only page-anchored extracted evidence.", output)
@@ -1287,7 +1287,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -1334,7 +1334,7 @@ class CliTests(unittest.TestCase):
                         "--write-output",
                         str(draft_path),
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -1365,7 +1365,7 @@ class CliTests(unittest.TestCase):
             with redirect_stdout(out):
                 code = main(
                     [
-                        "jarvis",
+                        "friday",
                         "tell",
                         "me",
                         "about",
@@ -1375,7 +1375,7 @@ class CliTests(unittest.TestCase):
                         "--write-format",
                         "package",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                 )
@@ -1440,7 +1440,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-workers",
                         "2",
                         "--data-dir",
-                        str(Path(tmp) / ".jarvis"),
+                        str(Path(tmp) / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -1472,7 +1472,7 @@ class CliTests(unittest.TestCase):
             code, output = self.run_cli(["report", "--latest", "--format", "markdown"], tmp_path)
 
             self.assertEqual(code, 0)
-            self.assertIn("# Jarvis Batch Report", output)
+            self.assertIn("# Friday Batch Report", output)
             self.assertIn("## Cited Evidence", output)
 
     def test_report_supports_json_format(self):
@@ -1505,7 +1505,7 @@ class CliTests(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertIn(f"Wrote report: {report_path}", output)
-            self.assertIn("# Jarvis Batch Report", report_path.read_text(encoding="utf-8"))
+            self.assertIn("# Friday Batch Report", report_path.read_text(encoding="utf-8"))
 
     def test_research_runs_query_and_writes_report_passport_and_rejection_log(self):
         from pathlib import Path
@@ -1550,7 +1550,7 @@ class CliTests(unittest.TestCase):
                         "--rejection-log",
                         str(rejection_path),
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                 )
@@ -1639,7 +1639,7 @@ class CliTests(unittest.TestCase):
                         "--run-summary",
                         str(summary_path),
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -1670,7 +1670,7 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.storage import JarvisStore
+        from friday.storage import FridayStore
 
         candidates = [
             Candidate(
@@ -1715,7 +1715,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             first_out = io.StringIO()
             with redirect_stdout(first_out):
                 first_code = main(
@@ -1755,7 +1755,7 @@ class CliTests(unittest.TestCase):
                     pdf_ingestor=fake_pdf_ingestor,
                 )
 
-            store = JarvisStore(data_dir / "jarvis.db")
+            store = FridayStore(data_dir / "friday.db")
             run = store.get_research_run(run_id)
             batch = store.get_batch(run.batch_id)
 
@@ -1790,7 +1790,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             for query in ("first query", "second query"):
                 out = io.StringIO()
                 with redirect_stdout(out):
@@ -1843,7 +1843,7 @@ class CliTests(unittest.TestCase):
             code, output = self.run_cli(["eval-suite", "run"], Path(tmp))
 
             self.assertEqual(code, 0)
-            self.assertIn("Jarvis Eval Suite", output)
+            self.assertIn("Friday Eval Suite", output)
             self.assertIn("Suite: core", output)
             self.assertIn("Status: pass", output)
             self.assertIn("biomedical.maldi_amr_query_plan", output)
@@ -1898,14 +1898,14 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.evidence import EvidenceItem
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.evidence import EvidenceItem
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             run = store.create_research_run(
                 query="MALDI AMR",
                 limit=1000,
@@ -1965,26 +1965,26 @@ class CliTests(unittest.TestCase):
             code, output = self.run_cli(["run-summary", "--latest"], tmp_path)
 
             self.assertEqual(code, 0)
-            self.assertIn("Jarvis Run Summary", output)
+            self.assertIn("Friday Run Summary", output)
             self.assertIn(f"Run: {run.run_id}", output)
             self.assertIn(f"Batch: {batch.batch_id}", output)
             self.assertIn("screened=2", output)
             self.assertIn("unlabeled_allowed=1", output)
             self.assertIn("Attention", output)
             self.assertIn(unlabeled.source_for_gate, output)
-            self.assertIn("jarvis labels review --latest --only maybe", output)
+            self.assertIn("friday labels review --latest --only maybe", output)
 
     def test_run_summary_json_outputs_structured_dashboard(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="language math", limit=25, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -2076,7 +2076,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             for query in ("first query", "second query"):
                 out = io.StringIO()
                 with redirect_stdout(out):
@@ -2142,7 +2142,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
@@ -2167,7 +2167,7 @@ class CliTests(unittest.TestCase):
             self.assertIn(f"Wrote passport: {run_dir / 'passport.json'}", output)
             self.assertIn(f"Wrote rejection log: {run_dir / 'rejection-log.json'}", output)
             self.assertIn(f"Wrote run summary: {run_dir / 'run-summary.json'}", output)
-            self.assertIn("# Jarvis Batch Report", (run_dir / "report.md").read_text(encoding="utf-8"))
+            self.assertIn("# Friday Batch Report", (run_dir / "report.md").read_text(encoding="utf-8"))
             self.assertEqual(json.loads((run_dir / "passport.json").read_text(encoding="utf-8"))["artifact_type"], "batch_passport")
             self.assertEqual(json.loads((run_dir / "rejection-log.json").read_text(encoding="utf-8"))["counts"]["source_gate"], 1)
             self.assertEqual(
@@ -2201,7 +2201,7 @@ class CliTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             smoke_dir = tmp_path / "smoke-pack"
             out = io.StringIO()
             with redirect_stdout(out):
@@ -2258,9 +2258,9 @@ class CliTests(unittest.TestCase):
                     "label_eval",
                 },
             )
-            self.assertIn(f"jarvis run-summary --run-id {manifest['run_id']}", manifest["next_commands"])
-            self.assertIn(f"jarvis labels review --batch-id {manifest['batch_id']}", manifest["next_commands"])
-            self.assertIn(f"# Jarvis Batch Report", (smoke_dir / "report.md").read_text(encoding="utf-8"))
+            self.assertIn(f"friday run-summary --run-id {manifest['run_id']}", manifest["next_commands"])
+            self.assertIn(f"friday labels review --batch-id {manifest['batch_id']}", manifest["next_commands"])
+            self.assertIn(f"# Friday Batch Report", (smoke_dir / "report.md").read_text(encoding="utf-8"))
             self.assertEqual(
                 json.loads((smoke_dir / "rejection-log.json").read_text(encoding="utf-8"))["counts"]["source_gate"],
                 1,
@@ -2276,13 +2276,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=3, mode="query")
             maybe = Candidate(
                 provider="pubmed",
@@ -2344,13 +2344,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="language math", limit=5, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -2407,13 +2407,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             first_batch = store.create_batch(query="MALDI AMR", limit=5, mode="query")
             second_batch = store.create_batch(query="language math", limit=5, mode="query")
             first_candidate = Candidate(
@@ -2476,13 +2476,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=2, mode="query")
             candidate = Candidate(
                 provider="pubmed",
@@ -2535,13 +2535,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="language math", limit=1, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -2577,13 +2577,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=5, mode="query")
             maybe = Candidate(
                 provider="pubmed",
@@ -2658,13 +2658,13 @@ class CliTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from jarvis_research.source_policy import evaluate_source
-        from jarvis_research.storage import JarvisStore
+        from friday.source_policy import evaluate_source
+        from friday.storage import FridayStore
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            data_dir = tmp_path / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = tmp_path / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="language math", limit=5, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -2779,7 +2779,7 @@ class CliTests(unittest.TestCase):
                         "--passport",
                         str(passport_path),
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     llm_label_client=fake_client,
@@ -2852,7 +2852,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -2886,7 +2886,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -2968,7 +2968,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -3002,7 +3002,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -3061,7 +3061,7 @@ class CliTests(unittest.TestCase):
                 status="stored",
                 reason="pdf_text_extracted",
             )
-            from jarvis_research.evidence import EvidenceItem
+            from friday.evidence import EvidenceItem
 
             store.add_evidence_records(
                 artifact.artifact_id,
@@ -3095,7 +3095,7 @@ class CliTests(unittest.TestCase):
                         "--deep-read-limit",
                         "1",
                         "--data-dir",
-                        str(tmp_path / ".jarvis"),
+                        str(tmp_path / ".friday"),
                     ],
                     discoverer=fake_discoverer,
                     pdf_ingestor=fake_pdf_ingestor,
@@ -3117,7 +3117,7 @@ class CliTests(unittest.TestCase):
                             "--output",
                             str(output_dir),
                             "--data-dir",
-                            str(tmp_path / ".jarvis"),
+                            str(tmp_path / ".friday"),
                         ]
                     )
                 except SystemExit as exc:
@@ -3151,7 +3151,7 @@ class CliTests(unittest.TestCase):
                 ],
             )
             self.assertIn("# Evidence-Bound Results Summary", (output_dir / "draft.md").read_text(encoding="utf-8"))
-            self.assertIn("# Jarvis Evidence Report", (output_dir / "report.md").read_text(encoding="utf-8"))
+            self.assertIn("# Friday Evidence Report", (output_dir / "report.md").read_text(encoding="utf-8"))
             self.assertTrue((output_dir / "report.pdf").read_bytes().startswith(b"%PDF-1.4"))
             writing = json.loads((output_dir / "writing.json").read_text(encoding="utf-8"))
             screening_labels = json.loads((output_dir / "screening_labels.json").read_text(encoding="utf-8"))
@@ -3203,7 +3203,7 @@ class CliTests(unittest.TestCase):
             used = json.loads((output_dir / "used_evidence.json").read_text(encoding="utf-8"))
             self.assertEqual(used["used_evidence"][0]["citations"], ["P1 p2", "P2 p2"])
 
-    def test_compose_does_not_create_jarvis_store(self):
+    def test_compose_does_not_create_friday_store(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
@@ -3212,7 +3212,7 @@ class CliTests(unittest.TestCase):
             package_dir = tmp_path / "writing-package"
             _write_compose_fixture_package(package_dir)
             output_dir = tmp_path / "compose-output"
-            data_dir = tmp_path / ".jarvis"
+            data_dir = tmp_path / ".friday"
             out = io.StringIO()
 
             with redirect_stdout(out):
@@ -3231,14 +3231,14 @@ class CliTests(unittest.TestCase):
                 )
 
             self.assertEqual(code, 0)
-            self.assertFalse((data_dir / "jarvis.db").exists())
+            self.assertFalse((data_dir / "friday.db").exists())
 
     def test_global_data_dir_before_subcommand_is_honored(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
             out = io.StringIO()
             with redirect_stdout(out):
                 code = main(
@@ -3250,7 +3250,7 @@ class CliTests(unittest.TestCase):
                     ]
                 )
             self.assertEqual(code, 0)
-            self.assertTrue((data_dir / "jarvis.db").exists())
+            self.assertTrue((data_dir / "friday.db").exists())
 
 def _write_compose_fixture_package(package_dir):
     package_dir.mkdir(parents=True, exist_ok=True)

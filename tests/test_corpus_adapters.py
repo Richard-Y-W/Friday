@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.corpus_adapters import (
+from friday.corpus_adapters import (
     import_folder_corpus,
     import_obsidian_corpus,
     import_zotero_corpus,

@@ -5,12 +5,12 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.reporting import render_batch_report_json
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
-from jarvis_research.writing_copilot import (
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.reporting import render_batch_report_json
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
+from friday.writing_copilot import (
     build_writing_audit_summary,
     build_writing_payload,
     render_writing_markdown,
@@ -49,7 +49,7 @@ class WritingCopilotTests(unittest.TestCase):
 
     def test_outline_and_limitations_surface_gaps_when_no_evidence_exists(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             report_data = render_batch_report_json(store, batch.batch_id)
 
@@ -137,7 +137,7 @@ class WritingCopilotTests(unittest.TestCase):
                 }
             ]
 
-            from jarvis_research.writing_copilot import validate_citation_coverage
+            from friday.writing_copilot import validate_citation_coverage
 
             check = validate_citation_coverage(broken)
 
@@ -178,7 +178,7 @@ class WritingCopilotTests(unittest.TestCase):
                 }
             ]
 
-            from jarvis_research.writing_copilot import validate_citation_coverage
+            from friday.writing_copilot import validate_citation_coverage
 
             check = validate_citation_coverage(broken)
 
@@ -234,7 +234,7 @@ class WritingCopilotTests(unittest.TestCase):
             report_data = render_batch_report_json(store, batch_id)
             payload = build_writing_payload(report_data, mode="results-summary")
 
-            import jarvis_research.writing_copilot as writing_copilot
+            import friday.writing_copilot as writing_copilot
 
             self.assertTrue(hasattr(writing_copilot, "build_writing_package_files"))
             package = writing_copilot.build_writing_package_files(payload)
@@ -264,7 +264,7 @@ class WritingCopilotTests(unittest.TestCase):
                 ],
             )
             self.assertIn("# Evidence-Bound Results Summary", package["draft.md"])
-            self.assertIn("# Jarvis Evidence Report", package["report.md"])
+            self.assertIn("# Friday Evidence Report", package["report.md"])
             self.assertIn("## Executive Summary", package["report.md"])
             self.assertIn("## Background", package["report.md"])
             self.assertIn("## Key Findings", package["report.md"])
@@ -287,7 +287,7 @@ class WritingCopilotTests(unittest.TestCase):
             report_data = render_batch_report_json(store, batch_id)
             payload = build_writing_payload(report_data, mode="literature-review")
 
-            from jarvis_research.writing_copilot import build_writing_package_files
+            from friday.writing_copilot import build_writing_package_files
 
             package = build_writing_package_files(payload)
             tables = json.loads(package["evidence_tables.json"])
@@ -340,8 +340,8 @@ class WritingCopilotTests(unittest.TestCase):
             self.assertNotIn("This unsupported paragraph should never be emitted.", markdown)
 
 
-def _store_with_evidence(root: Path) -> tuple[JarvisStore, str]:
-    store = JarvisStore(root / "jarvis.db")
+def _store_with_evidence(root: Path) -> tuple[FridayStore, str]:
+    store = FridayStore(root / "friday.db")
     batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
     source = "10.1038/example"
     candidate = Candidate(
@@ -388,8 +388,8 @@ def _store_with_evidence(root: Path) -> tuple[JarvisStore, str]:
     return store, batch.batch_id
 
 
-def _store_with_two_papers(root: Path) -> tuple[JarvisStore, str]:
-    store = JarvisStore(root / "jarvis.db")
+def _store_with_two_papers(root: Path) -> tuple[FridayStore, str]:
+    store = FridayStore(root / "friday.db")
     batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
     papers = [
         (
@@ -437,8 +437,8 @@ def _store_with_two_papers(root: Path) -> tuple[JarvisStore, str]:
     return store, batch.batch_id
 
 
-def _store_with_table_evidence(root: Path) -> tuple[JarvisStore, str]:
-    store = JarvisStore(root / "jarvis.db")
+def _store_with_table_evidence(root: Path) -> tuple[FridayStore, str]:
+    store = FridayStore(root / "friday.db")
     batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
     source = "10.1038/example-table"
     candidate = Candidate(

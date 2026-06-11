@@ -2,16 +2,16 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.label_eval import build_label_evaluation
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.label_eval import build_label_evaluation
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class LabelEvaluationTests(unittest.TestCase):
     def test_evaluates_agent_labels_against_human_overrides(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=4, mode="query")
             correct = Candidate(
                 provider="pubmed",

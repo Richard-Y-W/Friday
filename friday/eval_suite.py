@@ -5,15 +5,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Sequence
 
-from jarvis_research.claim_audit import build_claim_support_audit
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.pdf_ingestion import resolve_candidate_pdf_url
-from jarvis_research.query_planning import plan_query
-from jarvis_research.relevance import rank_candidates
-from jarvis_research.screening import auto_label_batch_items
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.claim_audit import build_claim_support_audit
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.pdf_ingestion import resolve_candidate_pdf_url
+from friday.query_planning import plan_query
+from friday.relevance import rank_candidates
+from friday.screening import auto_label_batch_items
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 EvalCaseRunner = Callable[[], tuple[bool, str]]
@@ -66,7 +66,7 @@ def render_eval_report_text(report: dict[str, Any]) -> str:
     counts = report["counts"]
     pass_rate = int(round(counts["pass_rate"] * 100))
     lines = [
-        "Jarvis Eval Suite",
+        "Friday Eval Suite",
         f"Suite: {report['suite']}",
         f"Status: {report['status']}",
         (
@@ -107,7 +107,7 @@ def _run_case(case: EvalCase) -> dict[str, Any]:
 
 
 def _default_cases() -> list[EvalCase]:
-    from jarvis_research.eval_corpus import build_gold_eval_cases, build_real_smoke_eval_cases
+    from friday.eval_corpus import build_gold_eval_cases, build_real_smoke_eval_cases
 
     built_in_cases = [
         EvalCase(
@@ -195,7 +195,7 @@ def _case_maldi_amr_query_plan() -> tuple[bool, str]:
 
 
 def _case_math_language_query_plan() -> tuple[bool, str]:
-    plan = plan_query("jarvis tell me about how language is math")
+    plan = plan_query("friday tell me about how language is math")
     checks = [
         plan.intent == "mathematical_linguistics",
         "mathematical linguistics" in plan.expanded_queries,
@@ -249,7 +249,7 @@ def _case_biomedical_ranking() -> tuple[bool, str]:
 
 def _case_biomedical_auto_label() -> tuple[bool, str]:
     with TemporaryDirectory() as tmp:
-        store = JarvisStore(Path(tmp) / "jarvis.db")
+        store = FridayStore(Path(tmp) / "friday.db")
         batch = store.create_batch(query="MALDI AMR", limit=1, mode="eval")
         candidate = Candidate(
             provider="pubmed",
@@ -273,7 +273,7 @@ def _case_biomedical_auto_label() -> tuple[bool, str]:
 
 def _case_math_language_auto_label() -> tuple[bool, str]:
     with TemporaryDirectory() as tmp:
-        store = JarvisStore(Path(tmp) / "jarvis.db")
+        store = FridayStore(Path(tmp) / "friday.db")
         batch = store.create_batch(query="what is the importance of math in language", limit=1, mode="eval")
         candidate = Candidate(
             provider="openalex",
@@ -321,7 +321,7 @@ def _case_safe_pmc_pdf_resolution() -> tuple[bool, str]:
 
 def _case_claim_audit_requires_evidence() -> tuple[bool, str]:
     with TemporaryDirectory() as tmp:
-        store = JarvisStore(Path(tmp) / "jarvis.db")
+        store = FridayStore(Path(tmp) / "friday.db")
         batch = store.create_batch(query="MALDI AMR", limit=1, mode="eval")
         audit = build_claim_support_audit(store, batch.batch_id)
     passed = audit["status"] == "gaps" and audit["counts"]["material_gaps"] == 1
@@ -334,7 +334,7 @@ def _case_claim_audit_requires_evidence() -> tuple[bool, str]:
 
 def _case_claim_audit_accepts_page_evidence() -> tuple[bool, str]:
     with TemporaryDirectory() as tmp:
-        store = JarvisStore(Path(tmp) / "jarvis.db")
+        store = FridayStore(Path(tmp) / "friday.db")
         batch = store.create_batch(query="MALDI AMR", limit=1, mode="eval")
         candidate = Candidate(
             provider="pubmed",

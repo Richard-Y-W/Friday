@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.evidence import extract_evidence_from_pages
+from friday.evidence import extract_evidence_from_pages
 
 
 class EvidenceExtractionTests(unittest.TestCase):

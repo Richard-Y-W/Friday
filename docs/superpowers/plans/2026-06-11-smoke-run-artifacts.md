@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `jarvis smoke-run` so real research smoke queries produce a complete review, export, eval, and manifest artifact pack.
+**Goal:** Add `friday smoke-run` so real research smoke queries produce a complete review, export, eval, and manifest artifact pack.
 
 **Architecture:** Keep `research-run` as the single owner of discovery, source gating, auto-labeling, deep reads, and report/passport/rejection/summary artifacts. Add a thin CLI wrapper that supplies smoke defaults, points `research-run` at a smoke directory, then derives label review/export/eval files and a manifest from the same batch.
 
-**Tech Stack:** Python standard library, existing `JarvisStore`, existing CLI handlers, `label_review`, `label_export`, `label_eval`, `research_artifacts`, and `unittest`.
+**Tech Stack:** Python standard library, existing `FridayStore`, existing CLI handlers, `label_review`, `label_export`, `label_eval`, `research_artifacts`, and `unittest`.
 
 ---
 
@@ -48,7 +48,7 @@ Expected: FAIL because `smoke-run` is not a known command.
 ### Task 2: Smoke Run Implementation
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 
 - [x] **Step 1: Add parser and command dispatch**
 

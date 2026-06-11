@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `jarvis scan --query "<topic>" --limit N` query scholarly indexes and persist screened candidate records in the batch.
+**Goal:** Make `friday scan --query "<topic>" --limit N` query scholarly indexes and persist screened candidate records in the batch.
 
 **Architecture:** Add a `discovery` module that converts OpenAlex, arXiv, and PubMed API responses into a common `Candidate` record. Extend storage to save candidate metadata on batch items. Keep discovery HTTP isolated behind injectable fetch functions so unit tests use fixed API fixtures and never require live network.
 
@@ -12,17 +12,17 @@
 
 ## File Structure
 
-- Create `jarvis_research/discovery.py`: API URL construction, HTTP helpers, response parsers, candidate dedupe.
-- Modify `jarvis_research/storage.py`: add nullable candidate metadata columns to `batch_items`, add migration for existing DBs, persist `Candidate` values.
-- Modify `jarvis_research/cli.py`: call discovery for `scan --query`, store candidates, print real counts.
-- Modify `jarvis_research/reporting.py`: show discovered candidate metadata in batch reports.
+- Create `friday/discovery.py`: API URL construction, HTTP helpers, response parsers, candidate dedupe.
+- Modify `friday/storage.py`: add nullable candidate metadata columns to `batch_items`, add migration for existing DBs, persist `Candidate` values.
+- Modify `friday/cli.py`: call discovery for `scan --query`, store candidates, print real counts.
+- Modify `friday/reporting.py`: show discovered candidate metadata in batch reports.
 - Add `tests/test_discovery.py`: parser and URL behavior using fake HTTP responses.
 - Update `tests/test_storage.py`, `tests/test_cli.py`, and `tests/test_reporting.py`: assert persisted candidate metadata and non-empty query batches.
 
 ## Task 1: Discovery Parsers
 
 **Files:**
-- Create: `jarvis_research/discovery.py`
+- Create: `friday/discovery.py`
 - Test: `tests/test_discovery.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -33,7 +33,7 @@ Add tests that parse one OpenAlex JSON response, one arXiv Atom response, and on
 
 Run: `python3 -m unittest tests.test_discovery -v`
 
-Expected: import failure because `jarvis_research.discovery` does not exist.
+Expected: import failure because `friday.discovery` does not exist.
 
 - [ ] **Step 3: Implement discovery parsers**
 
@@ -55,7 +55,7 @@ Expected: discovery parser tests pass.
 ## Task 2: Discovery Client
 
 **Files:**
-- Modify: `jarvis_research/discovery.py`
+- Modify: `friday/discovery.py`
 - Test: `tests/test_discovery.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -89,7 +89,7 @@ Expected: discovery client tests pass.
 ## Task 3: Persist Candidate Metadata
 
 **Files:**
-- Modify: `jarvis_research/storage.py`
+- Modify: `friday/storage.py`
 - Test: `tests/test_storage.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -125,7 +125,7 @@ Expected: storage tests pass.
 ## Task 4: Query CLI Uses Discovery
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -151,7 +151,7 @@ Expected: CLI tests pass.
 ## Task 5: Reports Show Candidates
 
 **Files:**
-- Modify: `jarvis_research/reporting.py`
+- Modify: `friday/reporting.py`
 - Test: `tests/test_reporting.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -190,9 +190,9 @@ Expected: all tests pass.
 Run:
 
 ```bash
-python3 -m jarvis_research scan --query "MALDI AMR" --limit 5 --data-dir /tmp/jarvis-discovery-smoke
-python3 -m jarvis_research batches --data-dir /tmp/jarvis-discovery-smoke
-python3 -m jarvis_research report --latest --data-dir /tmp/jarvis-discovery-smoke
+python3 -m friday scan --query "MALDI AMR" --limit 5 --data-dir /tmp/friday-discovery-smoke
+python3 -m friday batches --data-dir /tmp/friday-discovery-smoke
+python3 -m friday report --latest --data-dir /tmp/friday-discovery-smoke
 ```
 
 Expected: commands exit 0. If network is unavailable, the query command should still create a batch and print an API error message instead of crashing.

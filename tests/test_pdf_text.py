@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.pdf_text import clean_pdf_pages
+from friday.pdf_text import clean_pdf_pages
 
 
 class PdfTextCleanupTests(unittest.TestCase):

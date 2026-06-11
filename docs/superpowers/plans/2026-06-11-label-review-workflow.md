@@ -4,16 +4,16 @@
 
 **Goal:** Add a CLI-first label review workflow for quickly triaging agent labels, unlabeled high-relevance papers, and human overrides.
 
-**Architecture:** Add a focused `jarvis_research.label_review` module that joins batch items, current screening labels, and smart review-queue rationale into ranked review rows. Extend `jarvis labels` with `review` and `set` actions while preserving existing list/export behavior.
+**Architecture:** Add a focused `friday.label_review` module that joins batch items, current screening labels, and smart review-queue rationale into ranked review rows. Extend `friday labels` with `review` and `set` actions while preserving existing list/export behavior.
 
-**Tech Stack:** Python standard library, existing `JarvisStore`, existing screening review queue, `unittest`.
+**Tech Stack:** Python standard library, existing `FridayStore`, existing screening review queue, `unittest`.
 
 ---
 
 ### Task 1: Review Row Builder
 
 **Files:**
-- Create: `jarvis_research/label_review.py`
+- Create: `friday/label_review.py`
 - Test: `tests/test_label_review.py`
 
 - [x] **Step 1: Write failing review-row tests**
@@ -23,7 +23,7 @@ Add tests showing review rows include labeled and unlabeled allowed papers, prio
 - [x] **Step 2: Run tests to verify failure**
 
 Run: `python3 -m unittest tests.test_label_review -v`
-Expected: FAIL because `jarvis_research.label_review` does not exist.
+Expected: FAIL because `friday.label_review` does not exist.
 
 - [x] **Step 3: Implement review module**
 
@@ -37,15 +37,15 @@ Expected: PASS.
 ### Task 2: CLI Review and Set Actions
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI tests**
 
 Add tests for:
-- `jarvis labels review --latest --only maybe`
-- `jarvis labels review --latest --only unlabeled --min-relevance 60`
-- `jarvis labels set --latest --source ... --label relevant --note ...`
+- `friday labels review --latest --only maybe`
+- `friday labels review --latest --only unlabeled --min-relevance 60`
+- `friday labels set --latest --source ... --label relevant --note ...`
 
 - [x] **Step 2: Run tests to verify failure**
 

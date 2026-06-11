@@ -4,17 +4,17 @@
 
 **Goal:** Add a real-smoke human-label benchmark and tune heuristic screening against the 30 reviewed smoke-run labels.
 
-**Architecture:** Extend the existing JSON-backed eval corpus loader with a second fixture file and suite name, reusing the existing `screening_label` evaluator. Tune `jarvis_research.screening` with small, query-aware scoring rules that preserve the current metadata-only, non-LLM safety model.
+**Architecture:** Extend the existing JSON-backed eval corpus loader with a second fixture file and suite name, reusing the existing `screening_label` evaluator. Tune `friday.screening` with small, query-aware scoring rules that preserve the current metadata-only, non-LLM safety model.
 
-**Tech Stack:** Python standard library, JSON fixtures, existing `EvalCase`, `JarvisStore`, `auto_label_batch_items`, and `unittest`.
+**Tech Stack:** Python standard library, JSON fixtures, existing `EvalCase`, `FridayStore`, `auto_label_batch_items`, and `unittest`.
 
 ---
 
 ### Task 1: Real-Smoke Fixture Loader
 
 **Files:**
-- Modify: `jarvis_research/eval_corpus.py`
-- Modify: `jarvis_research/eval_suite.py`
+- Modify: `friday/eval_corpus.py`
+- Modify: `friday/eval_suite.py`
 - Modify: `tests/test_eval_corpus.py`
 - Modify: `tests/test_eval_suite.py`
 - Create: `eval_corpus/real_smoke_labels.json`
@@ -44,7 +44,7 @@ Run the focused loader/suite tests again. Expected: tests load the suite, but re
 ### Task 2: Heuristic Screening Tuning
 
 **Files:**
-- Modify: `jarvis_research/screening.py`
+- Modify: `friday/screening.py`
 - Modify: `tests/test_screening.py`
 
 - [x] **Step 1: Write focused failing screening tests**
@@ -62,7 +62,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_screening.ScreeningTests.test_real_smoke_tuning_demotes_off_domain_biomedical_maybe tests.test_screening.ScreeningTests.test_real_smoke_tuning_promotes_math_language_methods -v
-python3 -m jarvis_research eval-suite run --suite real-smoke
+python3 -m friday eval-suite run --suite real-smoke
 ```
 
 Expected: FAIL before heuristic changes.
@@ -77,7 +77,7 @@ Add small helper token sets and query-aware branches in `_auto_label_item` for:
 
 - [x] **Step 4: Run focused tests and real-smoke suite green**
 
-Run the same focused tests and `python3 -m jarvis_research eval-suite run --suite real-smoke`. Expected: PASS.
+Run the same focused tests and `python3 -m friday eval-suite run --suite real-smoke`. Expected: PASS.
 
 ### Task 3: CI, Docs, and Verification
 
@@ -90,7 +90,7 @@ Run the same focused tests and `python3 -m jarvis_research eval-suite run --suit
 Update CI to run:
 
 ```bash
-python3 -m jarvis_research eval-suite run --suite real-smoke
+python3 -m friday eval-suite run --suite real-smoke
 ```
 
 - [x] **Step 2: Run full verification**
@@ -99,8 +99,8 @@ Run:
 
 ```bash
 python3 -m unittest discover -v
-python3 -m jarvis_research eval-suite run --suite real-smoke
-python3 -m jarvis_research eval-suite run --suite gold
+python3 -m friday eval-suite run --suite real-smoke
+python3 -m friday eval-suite run --suite gold
 ```
 
 Expected: all pass.

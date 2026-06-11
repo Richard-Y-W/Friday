@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.source_policy import evaluate_source
+from friday.source_policy import evaluate_source
 
 
 class SourcePolicyTests(unittest.TestCase):

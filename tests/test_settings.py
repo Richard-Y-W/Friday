@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.settings import DEFAULT_SETTINGS, load_settings, set_setting
+from friday.settings import DEFAULT_SETTINGS, load_settings, set_setting
 
 
 class SettingsTests(unittest.TestCase):
@@ -9,7 +9,7 @@ class SettingsTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
+            data_dir = Path(tmp) / ".friday"
 
             defaults = load_settings(data_dir)
             updated = set_setting(data_dir, "research.limit", "250")
@@ -38,7 +38,7 @@ class SettingsTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             with self.assertRaises(KeyError):
-                set_setting(Path(tmp) / ".jarvis", "unknown.value", "1")
+                set_setting(Path(tmp) / ".friday", "unknown.value", "1")
 
 
 if __name__ == "__main__":

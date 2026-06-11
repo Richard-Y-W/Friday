@@ -1,7 +1,7 @@
 import unittest
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.relevance import rank_candidates, score_candidate
+from friday.discovery import Candidate
+from friday.relevance import rank_candidates, score_candidate
 
 
 class RelevanceTests(unittest.TestCase):

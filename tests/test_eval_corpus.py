@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.eval_corpus import (
+from friday.eval_corpus import (
     GOLD_CORPUS_PATH,
     REAL_SMOKE_CORPUS_PATH,
     build_gold_eval_cases,

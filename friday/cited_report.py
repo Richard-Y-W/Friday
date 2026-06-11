@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from jarvis_research.evidence import is_reportable_evidence_text
-from jarvis_research.storage import BatchItemRecord, EvidenceRecord, JarvisStore, PdfArtifactRecord
+from friday.evidence import is_reportable_evidence_text
+from friday.storage import BatchItemRecord, EvidenceRecord, FridayStore, PdfArtifactRecord
 
 
 TYPE_HEADINGS = {
@@ -23,7 +23,7 @@ class PaperReference:
     item: BatchItemRecord | None
 
 
-def render_cited_evidence_report(store: JarvisStore, batch_id: str) -> str:
+def render_cited_evidence_report(store: FridayStore, batch_id: str) -> str:
     data = build_cited_evidence_data(store, batch_id)
     batch = data["batch"]
     evidence_by_type = data["evidence"]
@@ -66,7 +66,7 @@ def render_cited_evidence_report(store: JarvisStore, batch_id: str) -> str:
     return "\n".join(lines)
 
 
-def build_cited_evidence_data(store: JarvisStore, batch_id: str) -> dict[str, Any]:
+def build_cited_evidence_data(store: FridayStore, batch_id: str) -> dict[str, Any]:
     batch = store.get_batch(batch_id)
     items_by_source = {item.source: item for item in store.list_batch_items(batch.batch_id)}
     artifacts = store.list_pdf_artifacts(batch.batch_id)
@@ -105,7 +105,7 @@ def build_cited_evidence_data(store: JarvisStore, batch_id: str) -> dict[str, An
 
 
 def _evidence_by_type(
-    store: JarvisStore,
+    store: FridayStore,
     references: list[PaperReference],
 ) -> dict[str, list[tuple[PaperReference, EvidenceRecord]]]:
     evidence_by_type: dict[str, list[tuple[PaperReference, EvidenceRecord]]] = {}

@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 import re
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.query_planning import plan_query
+from friday.discovery import Candidate
+from friday.query_planning import plan_query
 
 
 BIOMEDICAL_TERMS = {

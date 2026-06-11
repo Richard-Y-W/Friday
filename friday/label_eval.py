@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from jarvis_research.storage import BatchItemRecord, SCREENING_LABEL_CHOICES, ScreeningLabelRecord
+from friday.storage import BatchItemRecord, SCREENING_LABEL_CHOICES, ScreeningLabelRecord
 
 
 HIGH_CONFIDENCE_MISTAKE_THRESHOLD = 0.8

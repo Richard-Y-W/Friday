@@ -5,20 +5,20 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.label_export import (
+from friday.discovery import Candidate
+from friday.label_export import (
     build_label_export_rows,
     render_label_export_csv,
     render_label_export_jsonl,
 )
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class LabelExportTests(unittest.TestCase):
     def test_builds_training_rows_with_gold_and_weak_labels(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             agent_candidate = Candidate(
                 provider="pubmed",

@@ -1,15 +1,15 @@
 import json
 import unittest
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.llm_labeling import (
+from friday.discovery import Candidate
+from friday.llm_labeling import (
     LlmLabelingError,
     build_llm_label_payload,
     build_openai_responses_request,
     parse_llm_label_response,
 )
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class LlmLabelingTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class LlmLabelingTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="what is the importance of math in language", limit=1, mode="query")
             candidate = Candidate(
                 provider="openalex",

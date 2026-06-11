@@ -5,11 +5,11 @@ import io
 import json
 from typing import Any, Iterable
 
-from jarvis_research.screening import build_llm_review_queue
-from jarvis_research.storage import (
+from friday.screening import build_llm_review_queue
+from friday.storage import (
     BatchItemRecord,
     BatchRecord,
-    JarvisStore,
+    FridayStore,
     ScreeningLabelRecord,
 )
 
@@ -62,7 +62,7 @@ LABEL_EXPORT_FIELDS = [
 
 
 def build_label_export_rows(
-    store: JarvisStore,
+    store: FridayStore,
     *,
     batch_ids: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
@@ -94,7 +94,7 @@ def render_label_export_csv(rows: list[dict[str, Any]]) -> str:
     return output.getvalue().rstrip("\r\n")
 
 
-def _selected_batches(store: JarvisStore, batch_ids: Iterable[str] | None) -> list[BatchRecord]:
+def _selected_batches(store: FridayStore, batch_ids: Iterable[str] | None) -> list[BatchRecord]:
     if batch_ids is None:
         return store.list_batches()
     return [store.get_batch(batch_id) for batch_id in batch_ids]

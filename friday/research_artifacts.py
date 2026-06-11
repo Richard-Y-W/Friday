@@ -6,10 +6,10 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
-from jarvis_research import __version__
-from jarvis_research.query_planning import plan_query, render_acronym_expansions
-from jarvis_research.screening import LlmReviewQueueItem, build_screening_label_summary
-from jarvis_research.storage import JarvisStore
+from friday import __version__
+from friday.query_planning import plan_query, render_acronym_expansions
+from friday.screening import LlmReviewQueueItem, build_screening_label_summary
+from friday.storage import FridayStore
 
 
 STOCHASTICITY_DECLARATION = (
@@ -19,7 +19,7 @@ STOCHASTICITY_DECLARATION = (
 
 
 def build_batch_passport(
-    store: JarvisStore,
+    store: FridayStore,
     batch_id: str,
     *,
     data_dir: Path | None = None,
@@ -79,8 +79,8 @@ def build_repro_lock(*, data_dir: Path | None = None) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
         "stochasticity_declaration": STOCHASTICITY_DECLARATION,
-        "jarvis_research_version": __version__,
-        "jarvis_research_commit": _git_commit(),
+        "friday_version": __version__,
+        "friday_commit": _git_commit(),
         "model": {
             "used_for_scanner": False,
             "id": None,
@@ -99,7 +99,7 @@ def build_repro_lock(*, data_dir: Path | None = None) -> dict[str, Any]:
     }
 
 
-def build_rejection_log(store: JarvisStore, batch_id: str) -> dict[str, Any]:
+def build_rejection_log(store: FridayStore, batch_id: str) -> dict[str, Any]:
     batch = store.get_batch(batch_id)
     rejected: list[dict[str, Any]] = []
 
@@ -147,7 +147,7 @@ def build_rejection_log(store: JarvisStore, batch_id: str) -> dict[str, Any]:
 
 
 def build_research_run_summary(
-    store: JarvisStore,
+    store: FridayStore,
     run_id: str,
     *,
     data_dir: Path | None = None,

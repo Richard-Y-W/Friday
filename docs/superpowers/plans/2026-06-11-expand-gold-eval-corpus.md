@@ -4,9 +4,9 @@
 
 **Goal:** Expand the offline gold eval corpus to at least 25 realistic cases and fix any scoped behavior gaps those cases expose.
 
-**Architecture:** Reuse the existing JSON corpus format and `jarvis_research.eval_corpus` runner. Add cases first, strengthen tests around corpus size/type coverage, then update query planning, ranking, or screening only when gold cases fail.
+**Architecture:** Reuse the existing JSON corpus format and `friday.eval_corpus` runner. Add cases first, strengthen tests around corpus size/type coverage, then update query planning, ranking, or screening only when gold cases fail.
 
-**Tech Stack:** Python standard library, existing JarvisResearch eval corpus, query planning, source policy, relevance, screening, and unittest.
+**Tech Stack:** Python standard library, existing Friday eval corpus, query planning, source policy, relevance, screening, and unittest.
 
 ---
 
@@ -28,9 +28,9 @@ Expected: fail because the current corpus has 8 cases.
 
 **Files:**
 - Modify: `eval_corpus/gold_cases.json`
-- Modify as needed: `jarvis_research/query_planning.py`
-- Modify as needed: `jarvis_research/relevance.py`
-- Modify as needed: `jarvis_research/screening.py`
+- Modify as needed: `friday/query_planning.py`
+- Modify as needed: `friday/relevance.py`
+- Modify as needed: `friday/screening.py`
 - Modify as needed: focused tests under `tests/`
 
 - [x] **Step 1: Add gold cases**
@@ -52,7 +52,7 @@ Update the local module needed for each failure. Keep all behavior offline and d
 
 - [x] **Step 5: Run focused green tests**
 
-Run the relevant focused tests plus `python3 -m jarvis_research eval-suite run --suite gold`.
+Run the relevant focused tests plus `python3 -m friday eval-suite run --suite gold`.
 
 ### Task 3: Verification and Finish
 
@@ -65,7 +65,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_eval_corpus tests.test_eval_suite tests.test_relevance tests.test_screening tests.test_query_planning tests.test_source_policy -v
-python3 -m jarvis_research eval-suite run --suite gold
+python3 -m friday eval-suite run --suite gold
 ```
 
 - [x] **Step 2: Run full suite**

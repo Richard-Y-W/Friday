@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-from jarvis_research.acronyms import resolve_acronyms
+from friday.acronyms import resolve_acronyms
 
 
 @dataclass(frozen=True)

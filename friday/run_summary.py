@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from jarvis_research.label_eval import build_label_evaluation
-from jarvis_research.research_artifacts import build_rejection_log
-from jarvis_research.screening import build_llm_review_queue
-from jarvis_research.storage import (
+from friday.label_eval import build_label_evaluation
+from friday.research_artifacts import build_rejection_log
+from friday.screening import build_llm_review_queue
+from friday.storage import (
     BatchItemRecord,
     BatchRecord,
-    JarvisStore,
+    FridayStore,
     PdfArtifactRecord,
     ResearchRunRecord,
     ScreeningLabelRecord,
@@ -24,7 +24,7 @@ class RunSummaryTargetError(RuntimeError):
 
 
 def build_run_summary_dashboard(
-    store: JarvisStore,
+    store: FridayStore,
     *,
     latest: bool = False,
     run_id: str | None = None,
@@ -66,7 +66,7 @@ def render_run_summary_text(summary: dict[str, Any]) -> str:
     label_eval = summary["label_evaluation"]
     attention = summary["attention"]
     lines = [
-        "Jarvis Run Summary",
+        "Friday Run Summary",
         "",
         f"Target: {target['target_type']}",
         f"Run: {target['run_id'] or '-'}",
@@ -104,7 +104,7 @@ def render_run_summary_text(summary: dict[str, Any]) -> str:
 
 
 def _resolve_target(
-    store: JarvisStore,
+    store: FridayStore,
     *,
     latest: bool,
     run_id: str | None,
@@ -145,7 +145,7 @@ def _target(
 
 
 def _counts(
-    store: JarvisStore,
+    store: FridayStore,
     items: list[BatchItemRecord],
     labels: list[ScreeningLabelRecord],
     artifacts: list[PdfArtifactRecord],
@@ -226,25 +226,25 @@ def _next_commands(summary: dict[str, Any]) -> list[dict[str, str]]:
     if attention["maybe_labels"]:
         commands.append(
             {
-                "command": "jarvis labels review --latest --only maybe",
+                "command": "friday labels review --latest --only maybe",
                 "reason": "review maybe labels first",
             }
         )
     if attention["high_relevance_unlabeled"]:
         commands.append(
             {
-                "command": "jarvis labels review --latest --only unlabeled --min-relevance 60",
+                "command": "friday labels review --latest --only unlabeled --min-relevance 60",
                 "reason": "triage high-relevance unlabeled papers",
             }
         )
     if summary["counts"]["human_labels"]:
-        commands.append({"command": "jarvis labels eval --latest", "reason": "inspect agent-vs-human label quality"})
+        commands.append({"command": "friday labels eval --latest", "reason": "inspect agent-vs-human label quality"})
     if target["batch_id"]:
-        commands.append({"command": f"jarvis report {target['batch_id']}", "reason": "open the cited batch report"})
+        commands.append({"command": f"friday report {target['batch_id']}", "reason": "open the cited batch report"})
     if target["run_id"]:
         commands.append(
             {
-                "command": f"jarvis research-run --resume-run {target['run_id']}",
+                "command": f"friday research-run --resume-run {target['run_id']}",
                 "reason": "continue screening or deep reading this run",
             }
         )

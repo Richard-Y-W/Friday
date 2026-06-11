@@ -12,11 +12,11 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import urlopen
 import xml.etree.ElementTree as ET
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import extract_evidence_from_pages
-from jarvis_research.pdf_text import clean_pdf_pages
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.evidence import extract_evidence_from_pages
+from friday.pdf_text import clean_pdf_pages
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
@@ -72,7 +72,7 @@ def resolve_candidate_pdf_url(
 
 
 def deep_read_source(
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     batch_id: str,
     source: str,
@@ -274,7 +274,7 @@ def extract_pdf_text_pages(path: Path) -> list[str]:
 
 
 def _record_blocked(
-    store: JarvisStore,
+    store: FridayStore,
     batch_id: str,
     source: str,
     pdf_url: str | None,

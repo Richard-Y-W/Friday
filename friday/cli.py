@@ -14,34 +14,34 @@ import shlex
 import sys
 from typing import Callable, Sequence
 
-from jarvis_research.compose_agent import (
+from friday.compose_agent import (
     ComposePackageError,
     SECTION_CHOICES,
     build_compose_package_files,
 )
-from jarvis_research.corpus_adapters import (
+from friday.corpus_adapters import (
     import_folder_corpus,
     import_obsidian_corpus,
     import_zotero_corpus,
     write_corpus_outputs,
 )
-from jarvis_research.corpus_routing import CorpusRouteResult, route_corpus_query
-from jarvis_research.discovery import Candidate, discover_candidates
-from jarvis_research.eval_suite import (
+from friday.corpus_routing import CorpusRouteResult, route_corpus_query
+from friday.discovery import Candidate, discover_candidates
+from friday.eval_suite import (
     available_eval_suites,
     render_eval_report_text,
     run_eval_suite,
 )
-from jarvis_research.label_export import (
+from friday.label_export import (
     build_label_export_rows,
     render_label_export_csv,
     render_label_export_jsonl,
 )
-from jarvis_research.label_eval import build_label_evaluation
-from jarvis_research.label_review import LABEL_REVIEW_FILTERS, build_label_review_rows
-from jarvis_research.pdf_ingestion import PdfIngestionResult, deep_read_source
-from jarvis_research.relevance import rank_candidates
-from jarvis_research.reporting import (
+from friday.label_eval import build_label_evaluation
+from friday.label_review import LABEL_REVIEW_FILTERS, build_label_review_rows
+from friday.pdf_ingestion import PdfIngestionResult, deep_read_source
+from friday.relevance import rank_candidates
+from friday.reporting import (
     render_batch_report,
     render_batch_report_json,
     render_batch_report_markdown,
@@ -49,27 +49,27 @@ from jarvis_research.reporting import (
     render_scan_report_json,
     render_scan_report_markdown,
 )
-from jarvis_research.research_artifacts import (
+from friday.research_artifacts import (
     build_batch_passport,
     build_rejection_log,
     build_research_run_summary,
     write_json_artifact,
 )
-from jarvis_research.run_summary import (
+from friday.run_summary import (
     RunSummaryTargetError,
     build_run_summary_dashboard,
     render_run_summary_text,
 )
-from jarvis_research.screening import (
+from friday.screening import (
     auto_label_batch_items,
     build_llm_review_queue,
     rank_deep_read_items,
     recommend_unlabeled_items,
 )
-from jarvis_research.settings import flatten_settings, load_settings, set_setting
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import BatchItemRecord, JarvisStore, SCREENING_LABEL_CHOICES
-from jarvis_research.writing_copilot import (
+from friday.settings import flatten_settings, load_settings, set_setting
+from friday.source_policy import evaluate_source
+from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES
+from friday.writing_copilot import (
     MODE_CHOICES,
     build_writing_package_files,
     build_writing_payload,
@@ -101,8 +101,8 @@ COMMAND_NAMES = {
 }
 
 WRITING_FORMAT_CHOICES = ("markdown", "json", "package")
-JARVIS_VERSION = "1.0.0"
-JARVIS_ICON_ANSI = "\x1b[38;2;130;200;229m"
+FRIDAY_VERSION = "1.0.0"
+FRIDAY_ICON_ANSI = "\x1b[38;2;130;200;229m"
 ANSI_RESET = "\x1b[0m"
 
 
@@ -110,7 +110,7 @@ def main(
     argv: Sequence[str] | None = None,
     discoverer: Callable[..., list[Candidate]] = discover_candidates,
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ] = deep_read_source,
     llm_label_client: object | None = None,
@@ -138,7 +138,7 @@ def main(
     if args.command == "eval-suite":
         return _handle_eval_suite(args)
 
-    store = JarvisStore(data_dir / "jarvis.db")
+    store = FridayStore(data_dir / "friday.db")
     if args.command == "scan":
         return _handle_scan(args, store, data_dir, discoverer, pdf_ingestor)
     if args.command == "research":
@@ -192,7 +192,7 @@ def _handle_interactive_shell(
     argv: Sequence[str],
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
@@ -203,7 +203,7 @@ def _handle_interactive_shell(
     _print_interactive_splash()
     print("Scholarly-only evidence assistant. Type /help or /exit.")
     while True:
-        print("jarvis> ", end="", flush=True)
+        print("friday> ", end="", flush=True)
         raw_line = stream.readline()
         if raw_line == "":
             print("")
@@ -230,7 +230,7 @@ def _handle_interactive_line(
     data_dir: str,
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
@@ -242,7 +242,7 @@ def _handle_interactive_line(
         return 2
     if not tokens:
         return 0
-    if tokens[0] == "jarvis":
+    if tokens[0] == "friday":
         tokens = tokens[1:]
         if not tokens:
             return 0
@@ -296,7 +296,7 @@ def _handle_interactive_line(
 def _print_interactive_splash() -> None:
     lines = [
         _splash_line("     ▄▄▄"),
-        _splash_line("  ▄███████▄", f"        jarvis research {JARVIS_VERSION}"),
+        _splash_line("  ▄███████▄", f"        friday research {FRIDAY_VERSION}"),
         _splash_line(" ██  ▄ ▄  ██", "       Paper scanner - cited PDF reports"),
         _splash_line(" ██   ▀   ██", f"       {Path.cwd()}"),
         _splash_line("  ▀███████▀"),
@@ -305,14 +305,14 @@ def _print_interactive_splash() -> None:
 
 
 def _splash_line(icon: str, text: str = "") -> str:
-    return f"{JARVIS_ICON_ANSI}{icon}{ANSI_RESET}{text}"
+    return f"{FRIDAY_ICON_ANSI}{icon}{ANSI_RESET}{text}"
 
 
 def _copy_report_pdf_to_desktop(package_dir: Path) -> Path | None:
     source = package_dir / "report.pdf"
     if not source.exists():
         return None
-    output_dir = Path(os.environ.get("JARVIS_DESKTOP_REPORT_DIR", Path.home() / "Desktop" / "JarvisReports"))
+    output_dir = Path(os.environ.get("FRIDAY_DESKTOP_REPORT_DIR", Path.home() / "Desktop" / "FridayReports"))
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / f"{package_dir.name}.pdf"
     shutil.copyfile(source, destination)
@@ -322,10 +322,10 @@ def _copy_report_pdf_to_desktop(package_dir: Path) -> Path | None:
 def _print_interactive_help() -> None:
     print("Interactive commands:")
     print("  tell me about <topic>        Run scholarly research and write a report package.")
-    print("  jarvis tell me about <topic> Same as above; the prefix is optional.")
+    print("  friday tell me about <topic> Same as above; the prefix is optional.")
     print("  /settings                   Show saved limits and defaults.")
     print("  /settings set key value      Update a saved setting.")
-    print("  /exit                       Leave Jarvis.")
+    print("  /exit                       Leave Friday.")
 
 
 def _interactive_report_package_dir(data_dir: Path, query: str) -> Path:
@@ -334,8 +334,8 @@ def _interactive_report_package_dir(data_dir: Path, query: str) -> Path:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="jarvis")
-    parser.add_argument("--data-dir", default=".jarvis", help="Directory for Jarvis local state.")
+    parser = argparse.ArgumentParser(prog="friday")
+    parser.add_argument("--data-dir", default=".friday", help="Directory for Friday local state.")
     subparsers = parser.add_subparsers(dest="command")
 
     scan = subparsers.add_parser("scan", help="Create a single-paper scan or batch scan record.")
@@ -471,7 +471,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("research-runs", help="List recent research run ledger entries.")
 
-    eval_suite = subparsers.add_parser("eval-suite", help="Run offline Jarvis quality and safety evaluations.")
+    eval_suite = subparsers.add_parser("eval-suite", help="Run offline Friday quality and safety evaluations.")
     eval_suite.add_argument("action", choices=("list", "run"), help="List suites or run an eval suite.")
     eval_suite.add_argument(
         "--suite",
@@ -544,7 +544,7 @@ def _build_parser() -> argparse.ArgumentParser:
     settings = subparsers.add_parser(
         "settings",
         aliases=["/settings", "/setting"],
-        help="Show or update Jarvis defaults.",
+        help="Show or update Friday defaults.",
     )
     settings.add_argument("action", nargs="?", choices=("set",), help="Use 'set' to update one setting.")
     settings.add_argument("key", nargs="?", help="Setting key, such as research.limit.")
@@ -563,7 +563,7 @@ def _build_parser() -> argparse.ArgumentParser:
     report.add_argument("--passport", help="Path to write a batch passport JSON.")
     report.add_argument("--rejection-log", help="Path to write a batch rejection log JSON.")
 
-    import_corpus = subparsers.add_parser("import-corpus", help="Convert a user-owned corpus into Jarvis JSON.")
+    import_corpus = subparsers.add_parser("import-corpus", help="Convert a user-owned corpus into Friday JSON.")
     corpus_source = import_corpus.add_mutually_exclusive_group(required=True)
     corpus_source.add_argument("--folder", help="Folder of PDF files to import.")
     corpus_source.add_argument("--zotero-json", help="Zotero CSL JSON export to import.")
@@ -635,7 +635,7 @@ def _handle_natural_language_query(
     argv: Sequence[str],
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
@@ -664,7 +664,7 @@ def _handle_natural_language_query(
         _emit_output(content, args.output, label="corpus report")
         return 0
 
-    store = JarvisStore(data_dir / "jarvis.db")
+    store = FridayStore(data_dir / "friday.db")
     batch = store.create_batch(query=args.query, limit=args.limit, mode="query")
     discovery_error = None
     try:
@@ -750,11 +750,11 @@ def _handle_natural_language_query(
 
 def _handle_scan(
     args: argparse.Namespace,
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
 ) -> int:
@@ -825,7 +825,7 @@ def _handle_scan(
         print(f"Deep-scanned: {loaded.deep_read_count}")
         if discovery_error:
             print(f"Discovery error: {discovery_error}")
-        print(f"Report: jarvis report {batch.batch_id}")
+        print(f"Report: friday report {batch.batch_id}")
         return 0
 
     if args.manifest:
@@ -851,7 +851,7 @@ def _handle_scan(
         print(f"Blocked: {loaded.blocked_count}")
         print(f"Allowed: {loaded.screened_count - loaded.blocked_count}")
         print(f"Deep-scanned: {loaded.deep_read_count}")
-        print(f"Report: jarvis report {loaded.batch_id}")
+        print(f"Report: friday report {loaded.batch_id}")
         return 0
 
     if args.source:
@@ -860,7 +860,7 @@ def _handle_scan(
         print(f"Scan ID: {scan.scan_id}")
         print(f"Status: {'allowed' if scan.allowed else 'blocked'}")
         print(f"Reason: {scan.reason}")
-        print(f"Report: jarvis report {scan.scan_id}")
+        print(f"Report: friday report {scan.scan_id}")
         return 0
 
     print("scan requires a source, --query, or --manifest")
@@ -869,11 +869,11 @@ def _handle_scan(
 
 def _handle_research(
     args: argparse.Namespace,
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
 ) -> int:
@@ -961,11 +961,11 @@ def _handle_research(
 
 def _handle_smoke_run(
     args: argparse.Namespace,
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
@@ -1053,10 +1053,10 @@ def _handle_smoke_run(
     print(f"Wrote label eval: {paths['label_eval']}")
 
     next_commands = [
-        f"jarvis run-summary --run-id {run.run_id}",
-        f"jarvis labels review --batch-id {batch.batch_id}",
-        f"jarvis labels export --batch-id {batch.batch_id} --output {paths['labels_export']}",
-        f"jarvis labels eval --batch-id {batch.batch_id}",
+        f"friday run-summary --run-id {run.run_id}",
+        f"friday labels review --batch-id {batch.batch_id}",
+        f"friday labels export --batch-id {batch.batch_id} --output {paths['labels_export']}",
+        f"friday labels eval --batch-id {batch.batch_id}",
     ]
     manifest_artifacts = {key: str(path) for key, path in paths.items() if key != "manifest"}
     write_json_artifact(
@@ -1085,11 +1085,11 @@ def _handle_smoke_run(
 
 def _handle_research_run(
     args: argparse.Namespace,
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     discoverer: Callable[..., list[Candidate]],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
@@ -1341,7 +1341,7 @@ def _handle_research_run(
     return 0
 
 
-def _handle_review_queue(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_review_queue(args: argparse.Namespace, store: FridayStore) -> int:
     batch_id = _batch_id_from_args(args, store, "review-queue")
     if batch_id is None:
         return 1
@@ -1373,7 +1373,7 @@ def _handle_review_queue(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_research_runs(store: JarvisStore) -> int:
+def _handle_research_runs(store: FridayStore) -> int:
     runs = store.list_research_runs()
     if not runs:
         print("No research runs found.")
@@ -1406,7 +1406,7 @@ def _handle_eval_suite(args: argparse.Namespace) -> int:
     return 0 if report["status"] == "pass" else 1
 
 
-def _handle_run_summary(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_run_summary(args: argparse.Namespace, store: FridayStore) -> int:
     try:
         summary = build_run_summary_dashboard(
             store,
@@ -1428,7 +1428,7 @@ def _handle_run_summary(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_batches(store: JarvisStore) -> int:
+def _handle_batches(store: FridayStore) -> int:
     batches = store.list_batches()
     if not batches:
         print("No batches found.")
@@ -1442,7 +1442,7 @@ def _handle_batches(store: JarvisStore) -> int:
     return 0
 
 
-def _handle_scans(store: JarvisStore) -> int:
+def _handle_scans(store: FridayStore) -> int:
     scans = store.list_scans()
     if not scans:
         print("No scans found.")
@@ -1453,7 +1453,7 @@ def _handle_scans(store: JarvisStore) -> int:
     return 0
 
 
-def _handle_label(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_label(args: argparse.Namespace, store: FridayStore) -> int:
     batch_id = _batch_id_from_args(args, store, "label")
     if batch_id is None:
         return 1
@@ -1473,7 +1473,7 @@ def _handle_label(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_labels(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_labels(args: argparse.Namespace, store: FridayStore) -> int:
     if args.action == "eval":
         return _handle_labels_eval(args, store)
     if args.action == "export":
@@ -1524,7 +1524,7 @@ def _handle_labels(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_labels_export(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_labels_export(args: argparse.Namespace, store: FridayStore) -> int:
     if args.format not in {"jsonl", "csv"}:
         print("labels export requires --format jsonl or --format csv.")
         return 2
@@ -1542,7 +1542,7 @@ def _handle_labels_export(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_labels_eval(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_labels_eval(args: argparse.Namespace, store: FridayStore) -> int:
     if getattr(args, "all", False):
         print("labels eval requires --batch-id or --latest, not --all.")
         return 2
@@ -1600,7 +1600,7 @@ def _handle_labels_eval(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_labels_review(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_labels_review(args: argparse.Namespace, store: FridayStore) -> int:
     if getattr(args, "all", False):
         print("labels review requires --batch-id or --latest, not --all.")
         return 2
@@ -1639,7 +1639,7 @@ def _handle_labels_review(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _handle_labels_set(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_labels_set(args: argparse.Namespace, store: FridayStore) -> int:
     if getattr(args, "all", False):
         print("labels set requires --batch-id or --latest, not --all.")
         return 2
@@ -1674,7 +1674,7 @@ def _handle_labels_set(args: argparse.Namespace, store: JarvisStore) -> int:
     return 0
 
 
-def _existing_screening_label_for_source(store: JarvisStore, batch_id: str, source: str):
+def _existing_screening_label_for_source(store: FridayStore, batch_id: str, source: str):
     lookup = source.strip().lower()
     for label in store.list_screening_labels(batch_id):
         if label.source == source or label.normalized == lookup:
@@ -1701,7 +1701,7 @@ def _compact_signal_value(value: str) -> str:
 
 def _handle_auto_label(
     args: argparse.Namespace,
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     llm_label_client: object | None,
 ) -> int:
@@ -1764,14 +1764,14 @@ def _handle_settings(args: argparse.Namespace, data_dir: Path) -> int:
             return 2
     else:
         settings = load_settings(data_dir)
-    print("Jarvis settings")
+    print("Friday settings")
     print("")
     for key, value in flatten_settings(settings):
         print(f"{key}: {_setting_text(value)}")
     return 0
 
 
-def _handle_report(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_report(args: argparse.Namespace, store: FridayStore) -> int:
     target_id = args.target_id
     if args.latest:
         latest = store.latest_batch()
@@ -1829,7 +1829,7 @@ def _handle_import_corpus(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_write(args: argparse.Namespace, store: JarvisStore) -> int:
+def _handle_write(args: argparse.Namespace, store: FridayStore) -> int:
     if args.report:
         report_data = json.loads(Path(args.report).read_text(encoding="utf-8"))
     else:
@@ -1922,7 +1922,7 @@ def _corpus_report_json(route: CorpusRouteResult) -> dict:
 
 def _corpus_report_markdown(route: CorpusRouteResult) -> str:
     lines = [
-        "# Jarvis Corpus Report",
+        "# Friday Corpus Report",
         "",
         f"Query: {route.query}",
         f"Route: corpus",
@@ -1963,7 +1963,7 @@ def _corpus_report_markdown(route: CorpusRouteResult) -> str:
 
 def _corpus_report_text(route: CorpusRouteResult) -> str:
     lines = [
-        "Jarvis Corpus Report",
+        "Friday Corpus Report",
         f"Query: {route.query}",
         "Route: corpus",
         f"Loaded corpus entries: {route.loaded_count}",
@@ -2066,7 +2066,7 @@ def _call_discoverer(
 
 
 def _deep_read_ranked_batch_items(
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     batch_id: str,
     *,
@@ -2074,7 +2074,7 @@ def _deep_read_ranked_batch_items(
     min_relevance: int,
     deep_read_workers: int,
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
 ) -> None:
@@ -2106,13 +2106,13 @@ def _deep_read_ranked_batch_items(
 
 
 def _run_deep_read_window(
-    store: JarvisStore,
+    store: FridayStore,
     data_dir: Path,
     batch_id: str,
     items: list[BatchItemRecord],
     attempted_sources: set[str],
     pdf_ingestor: Callable[
-        [JarvisStore, Path, str, str, Candidate | None],
+        [FridayStore, Path, str, str, Candidate | None],
         PdfIngestionResult,
     ],
 ) -> int:
@@ -2150,7 +2150,7 @@ def _run_deep_read_window(
     return stored_count
 
 
-def _ranked_deep_read_items(store: JarvisStore, batch_id: str, min_relevance: int) -> list[BatchItemRecord]:
+def _ranked_deep_read_items(store: FridayStore, batch_id: str, min_relevance: int) -> list[BatchItemRecord]:
     return rank_deep_read_items(
         store.list_batch_items(batch_id),
         store.list_screening_labels(batch_id),
@@ -2202,7 +2202,7 @@ def _read_manifest(path: Path) -> list[str]:
     return sources
 
 
-def _batch_id_from_args(args: argparse.Namespace, store: JarvisStore, command_name: str) -> str | None:
+def _batch_id_from_args(args: argparse.Namespace, store: FridayStore, command_name: str) -> str | None:
     if getattr(args, "latest", False):
         latest = store.latest_batch()
         if latest is None:
@@ -2236,7 +2236,7 @@ def _split_data_dir_args(argv: Sequence[str]) -> tuple[str, list[str]]:
     args = list(argv)
     if len(args) >= 2 and args[0] == "--data-dir":
         return args[1], args[2:]
-    return ".jarvis", args
+    return ".friday", args
 
 
 def _parse_natural_language_args(argv: Sequence[str]) -> argparse.Namespace:

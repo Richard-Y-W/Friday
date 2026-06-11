@@ -4,9 +4,9 @@
 
 **Goal:** Add a curated JSON-backed `gold` eval suite for realistic scanner behavior checks.
 
-**Architecture:** Create `jarvis_research.eval_corpus` to load `eval_corpus/gold_cases.json` and convert each case into existing `EvalCase` objects. Extend `jarvis_research.eval_suite` with the `gold` suite and update CLI/CI tests to prove the suite is available and gated.
+**Architecture:** Create `friday.eval_corpus` to load `eval_corpus/gold_cases.json` and convert each case into existing `EvalCase` objects. Extend `friday.eval_suite` with the `gold` suite and update CLI/CI tests to prove the suite is available and gated.
 
-**Tech Stack:** Python standard library JSON/pathlib/tempfile/unittest, existing JarvisResearch query planning, source policy, relevance, screening, and storage APIs.
+**Tech Stack:** Python standard library JSON/pathlib/tempfile/unittest, existing Friday query planning, source policy, relevance, screening, and storage APIs.
 
 ---
 
@@ -14,7 +14,7 @@
 
 **Files:**
 - Create: `tests/test_eval_corpus.py`
-- Create later: `jarvis_research/eval_corpus.py`
+- Create later: `friday/eval_corpus.py`
 - Create later: `eval_corpus/gold_cases.json`
 
 - [x] **Step 1: Write failing tests**
@@ -24,11 +24,11 @@ Create tests that import `load_gold_eval_cases`, `build_gold_eval_cases`, and `G
 - [x] **Step 2: Run red test**
 
 Run: `python3 -m unittest tests.test_eval_corpus -v`
-Expected: fail because `jarvis_research.eval_corpus` does not exist.
+Expected: fail because `friday.eval_corpus` does not exist.
 
 - [x] **Step 3: Implement corpus file and loader**
 
-Add `eval_corpus/gold_cases.json` with query, source, ranking, and screening label cases. Add `jarvis_research/eval_corpus.py` with `load_gold_eval_cases()`, `build_gold_eval_cases()`, and evaluator helpers.
+Add `eval_corpus/gold_cases.json` with query, source, ranking, and screening label cases. Add `friday/eval_corpus.py` with `load_gold_eval_cases()`, `build_gold_eval_cases()`, and evaluator helpers.
 
 - [x] **Step 4: Run green test**
 
@@ -38,13 +38,13 @@ Expected: pass.
 ### Task 2: Eval Suite and CLI Integration
 
 **Files:**
-- Modify: `jarvis_research/eval_suite.py`
+- Modify: `friday/eval_suite.py`
 - Modify: `tests/test_eval_suite.py`
 - Modify: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing tests**
 
-Add tests proving `run_eval_suite("gold")` passes, cases are all suite `gold`, CLI list prints `gold`, and `jarvis eval-suite run --suite gold --format json` returns a passing `eval_suite_report`.
+Add tests proving `run_eval_suite("gold")` passes, cases are all suite `gold`, CLI list prints `gold`, and `friday eval-suite run --suite gold --format json` returns a passing `eval_suite_report`.
 
 - [x] **Step 2: Run red tests**
 
@@ -66,7 +66,7 @@ Run the focused eval-suite, eval-corpus, and CLI tests. Expected: pass.
 
 - [x] **Step 1: Write failing workflow test**
 
-Assert the CI workflow includes `python3 -m jarvis_research eval-suite run --suite gold`.
+Assert the CI workflow includes `python3 -m friday eval-suite run --suite gold`.
 
 - [x] **Step 2: Run red test**
 
@@ -79,7 +79,7 @@ Add the gold suite command to `.github/workflows/ci.yml`.
 
 - [x] **Step 4: Run green test and real gold command**
 
-Run `python3 -m unittest tests.test_ci_workflow -v` and `python3 -m jarvis_research eval-suite run --suite gold`.
+Run `python3 -m unittest tests.test_ci_workflow -v` and `python3 -m friday eval-suite run --suite gold`.
 Expected: pass.
 
 ### Task 4: Final Verification

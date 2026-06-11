@@ -2,9 +2,9 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.reporting import (
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.reporting import (
     build_batch_report_data,
     render_batch_report,
     render_batch_report_json,
@@ -13,14 +13,14 @@ from jarvis_research.reporting import (
     render_scan_report_markdown,
     render_scan_report,
 )
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class ReportingTests(unittest.TestCase):
     def test_scan_report_includes_source_decision(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             scan = store.create_scan(
                 "https://github.com/example/repo",
                 evaluate_source("https://github.com/example/repo"),
@@ -31,7 +31,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_includes_coverage_counts(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1000, mode="query")
             store.add_batch_item(
                 batch.batch_id,
@@ -45,7 +45,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_includes_candidate_metadata(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1000, mode="query")
             candidate = Candidate(
                 provider="arxiv",
@@ -91,7 +91,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_includes_pdf_artifacts_and_page_counts(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             artifact = store.add_pdf_artifact(
                 batch.batch_id,
@@ -130,7 +130,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_scan_report_exports_markdown_and_json(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             scan = store.create_scan(
                 "https://github.com/example/repo",
                 evaluate_source("https://github.com/example/repo"),
@@ -139,7 +139,7 @@ class ReportingTests(unittest.TestCase):
             markdown = render_scan_report_markdown(store, scan.scan_id)
             data = render_scan_report_json(store, scan.scan_id)
 
-            self.assertIn("# Jarvis Scan Report", markdown)
+            self.assertIn("# Friday Scan Report", markdown)
             self.assertIn(f"- Scan ID: `{scan.scan_id}`", markdown)
             self.assertEqual(data["report_type"], "scan")
             self.assertEqual(data["scan"]["scan_id"], scan.scan_id)
@@ -148,7 +148,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_exports_markdown_and_json(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -197,7 +197,7 @@ class ReportingTests(unittest.TestCase):
             markdown = render_batch_report_markdown(store, batch.batch_id)
             data = render_batch_report_json(store, batch.batch_id)
 
-            self.assertIn("# Jarvis Batch Report", markdown)
+            self.assertIn("# Friday Batch Report", markdown)
             self.assertIn("## Cited Evidence", markdown)
             self.assertIn("- [P1 p2] The model achieved an AUROC of 0.91.", markdown)
             self.assertEqual(data["report_type"], "batch")
@@ -216,7 +216,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_exports_screening_label_audit(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             relevant = Candidate(
                 provider="openalex",
@@ -264,7 +264,7 @@ class ReportingTests(unittest.TestCase):
 
     def test_batch_report_data_filters_noisy_evidence(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             source = "10.1038/example"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))

@@ -1,8 +1,8 @@
-# Jarvis CLI MVP Implementation Plan
+# Friday CLI MVP Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first working `jarvis` CLI slice: safe source gating, persistent scan/batch IDs, batch lists, scan lists, and evidence-constrained reports.
+**Goal:** Build the first working `friday` CLI slice: safe source gating, persistent scan/batch IDs, batch lists, scan lists, and evidence-constrained reports.
 
 **Architecture:** Implement a small Python package using only the standard library. Keep source-policy logic, SQLite persistence, reporting, and CLI parsing in separate modules so later PDF parsing and scholarly API discovery can plug in without rewriting the interface.
 
@@ -13,24 +13,24 @@
 ## File Structure
 
 - Create `pyproject.toml`: package metadata and console entry point.
-- Create `jarvis_research/__init__.py`: package marker.
-- Create `jarvis_research/__main__.py`: allows `python -m jarvis_research`.
-- Create `jarvis_research/source_policy.py`: allowlist/blocklist, identifier normalization, source gate decisions.
-- Create `jarvis_research/storage.py`: SQLite schema, scan/batch creation, list/latest lookups.
-- Create `jarvis_research/reporting.py`: text reports for scans and batches.
-- Create `jarvis_research/cli.py`: argparse command routing for `scan`, `batches`, `scans`, and `report`.
+- Create `friday/__init__.py`: package marker.
+- Create `friday/__main__.py`: allows `python -m friday`.
+- Create `friday/source_policy.py`: allowlist/blocklist, identifier normalization, source gate decisions.
+- Create `friday/storage.py`: SQLite schema, scan/batch creation, list/latest lookups.
+- Create `friday/reporting.py`: text reports for scans and batches.
+- Create `friday/cli.py`: argparse command routing for `scan`, `batches`, `scans`, and `report`.
 - Create tests under `tests/` for each behavior.
 
 ## Task 1: Source Gate
 
 **Files:**
-- Create: `jarvis_research/source_policy.py`
+- Create: `friday/source_policy.py`
 - Test: `tests/test_source_policy.py`
 
 - [ ] **Step 1: Write failing tests**
 
 ```python
-from jarvis_research.source_policy import evaluate_source
+from friday.source_policy import evaluate_source
 
 
 def test_allows_arxiv_pdf_url():
@@ -63,7 +63,7 @@ def test_blocks_archives_and_code_artifacts():
 
 Run: `python -m unittest tests.test_source_policy -v`
 
-Expected: import failure because `jarvis_research.source_policy` does not exist.
+Expected: import failure because `friday.source_policy` does not exist.
 
 - [ ] **Step 3: Implement source gate**
 
@@ -78,7 +78,7 @@ Expected: all source-policy tests pass.
 ## Task 2: SQLite Storage And IDs
 
 **Files:**
-- Create: `jarvis_research/storage.py`
+- Create: `friday/storage.py`
 - Test: `tests/test_storage.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -86,19 +86,19 @@ Expected: all source-policy tests pass.
 ```python
 from pathlib import Path
 
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 def test_creates_scan_id_and_lists_scan(tmp_path):
-    store = JarvisStore(tmp_path / "jarvis.db")
+    store = FridayStore(tmp_path / "friday.db")
     scan = store.create_scan("https://arxiv.org/pdf/2401.12345", evaluate_source("https://arxiv.org/pdf/2401.12345"))
     assert scan.scan_id.startswith("scan_")
     assert store.list_scans()[0].scan_id == scan.scan_id
 
 
 def test_creates_batch_id_and_tracks_counts(tmp_path):
-    store = JarvisStore(tmp_path / "jarvis.db")
+    store = FridayStore(tmp_path / "friday.db")
     batch = store.create_batch(query="test query", limit=1000, mode="query")
     store.add_batch_item(batch.batch_id, "https://github.com/example/repo", evaluate_source("https://github.com/example/repo"))
     loaded = store.get_batch(batch.batch_id)
@@ -111,7 +111,7 @@ def test_creates_batch_id_and_tracks_counts(tmp_path):
 
 Run: `python -m unittest tests.test_storage -v`
 
-Expected: import failure because `jarvis_research.storage` does not exist.
+Expected: import failure because `friday.storage` does not exist.
 
 - [ ] **Step 3: Implement storage**
 
@@ -126,19 +126,19 @@ Expected: all storage tests pass.
 ## Task 3: Reporting
 
 **Files:**
-- Create: `jarvis_research/reporting.py`
+- Create: `friday/reporting.py`
 - Test: `tests/test_reporting.py`
 
 - [ ] **Step 1: Write failing tests**
 
 ```python
-from jarvis_research.reporting import render_batch_report, render_scan_report
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.reporting import render_batch_report, render_scan_report
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 def test_scan_report_includes_source_decision(tmp_path):
-    store = JarvisStore(tmp_path / "jarvis.db")
+    store = FridayStore(tmp_path / "friday.db")
     scan = store.create_scan("https://github.com/example/repo", evaluate_source("https://github.com/example/repo"))
     report = render_scan_report(store, scan.scan_id)
     assert scan.scan_id in report
@@ -146,7 +146,7 @@ def test_scan_report_includes_source_decision(tmp_path):
 
 
 def test_batch_report_includes_coverage_counts(tmp_path):
-    store = JarvisStore(tmp_path / "jarvis.db")
+    store = FridayStore(tmp_path / "friday.db")
     batch = store.create_batch(query="test query", limit=1000, mode="query")
     store.add_batch_item(batch.batch_id, "https://arxiv.org/pdf/2401.12345", evaluate_source("https://arxiv.org/pdf/2401.12345"))
     report = render_batch_report(store, batch.batch_id)
@@ -158,7 +158,7 @@ def test_batch_report_includes_coverage_counts(tmp_path):
 
 Run: `python -m unittest tests.test_reporting -v`
 
-Expected: import failure because `jarvis_research.reporting` does not exist.
+Expected: import failure because `friday.reporting` does not exist.
 
 - [ ] **Step 3: Implement reporting**
 
@@ -173,9 +173,9 @@ Expected: all reporting tests pass.
 ## Task 4: CLI
 
 **Files:**
-- Create: `jarvis_research/cli.py`
-- Create: `jarvis_research/__main__.py`
-- Create: `jarvis_research/__init__.py`
+- Create: `friday/cli.py`
+- Create: `friday/__main__.py`
+- Create: `friday/__init__.py`
 - Create: `pyproject.toml`
 - Test: `tests/test_cli.py`
 
@@ -185,13 +185,13 @@ Expected: all reporting tests pass.
 import io
 from contextlib import redirect_stdout
 
-from jarvis_research.cli import main
+from friday.cli import main
 
 
 def run_cli(args, tmp_path):
     out = io.StringIO()
     with redirect_stdout(out):
-        code = main([*args, "--data-dir", str(tmp_path / ".jarvis")])
+        code = main([*args, "--data-dir", str(tmp_path / ".friday")])
     return code, out.getvalue()
 
 
@@ -199,14 +199,14 @@ def test_scan_prints_scan_id_and_report_command(tmp_path):
     code, output = run_cli(["scan", "https://arxiv.org/pdf/2401.12345"], tmp_path)
     assert code == 0
     assert "Scan ID: scan_" in output
-    assert "jarvis report scan_" in output
+    assert "friday report scan_" in output
 
 
 def test_query_scan_prints_batch_id(tmp_path):
     code, output = run_cli(["scan", "--query", "MALDI AMR", "--limit", "1000"], tmp_path)
     assert code == 0
     assert "Batch ID: batch_" in output
-    assert "jarvis report batch_" in output
+    assert "friday report batch_" in output
 
 
 def test_report_latest_uses_latest_batch(tmp_path):
@@ -221,7 +221,7 @@ def test_report_latest_uses_latest_batch(tmp_path):
 
 Run: `python -m unittest tests.test_cli -v`
 
-Expected: import failure because `jarvis_research.cli` does not exist.
+Expected: import failure because `friday.cli` does not exist.
 
 - [ ] **Step 3: Implement CLI**
 
@@ -257,10 +257,10 @@ Expected: all tests pass.
 Run:
 
 ```bash
-python -m jarvis_research scan https://arxiv.org/pdf/2401.12345
-python -m jarvis_research scan --query "MALDI AMR" --limit 1000
-python -m jarvis_research batches
-python -m jarvis_research report --latest
+python -m friday scan https://arxiv.org/pdf/2401.12345
+python -m friday scan --query "MALDI AMR" --limit 1000
+python -m friday batches
+python -m friday report --latest
 ```
 
 Expected: commands exit 0 and print scan/batch IDs and coverage reports.

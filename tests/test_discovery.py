@@ -1,7 +1,7 @@
 import unittest
 from urllib.parse import parse_qs, urlparse
 
-from jarvis_research.discovery import (
+from friday.discovery import (
     discover_candidates,
     parse_arxiv,
     parse_pubmed_abstracts,

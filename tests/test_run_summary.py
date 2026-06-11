@@ -2,17 +2,17 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.run_summary import build_run_summary_dashboard, render_run_summary_text
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.run_summary import build_run_summary_dashboard, render_run_summary_text
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class RunSummaryDashboardTests(unittest.TestCase):
     def test_builds_dashboard_with_attention_items_and_next_commands(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             run = store.create_research_run(
                 query="MALDI AMR",
                 limit=1000,
@@ -123,9 +123,9 @@ class RunSummaryDashboardTests(unittest.TestCase):
             self.assertEqual(summary["attention"]["label_disagreements"][0]["source"], disagreement.source_for_gate)
             self.assertEqual(summary["attention"]["high_relevance_unlabeled"][0]["source"], unlabeled.source_for_gate)
             self.assertEqual(summary["attention"]["failed_pdfs"][0]["reason"], "no_safe_pdf_url")
-            self.assertIn("jarvis labels review --latest --only maybe", commands)
-            self.assertIn("jarvis labels eval --latest", commands)
-            self.assertIn(f"jarvis research-run --resume-run {run.run_id}", commands)
-            self.assertIn("Jarvis Run Summary", text)
+            self.assertIn("friday labels review --latest --only maybe", commands)
+            self.assertIn("friday labels eval --latest", commands)
+            self.assertIn(f"friday research-run --resume-run {run.run_id}", commands)
+            self.assertIn("Friday Run Summary", text)
             self.assertIn("Attention", text)
             self.assertIn("Next commands", text)

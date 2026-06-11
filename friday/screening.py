@@ -4,15 +4,15 @@ from collections import Counter
 from dataclasses import dataclass, replace
 import re
 
-from jarvis_research.llm_labeling import (
+from friday.llm_labeling import (
     DEFAULT_OPENAI_API_KEY_ENV,
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_OPENAI_MODEL,
     LlmLabelResult,
     OpenAIResponsesLabelClient,
 )
-from jarvis_research.query_planning import plan_query
-from jarvis_research.storage import BatchItemRecord, JarvisStore, SCREENING_LABEL_CHOICES, ScreeningLabelRecord
+from friday.query_planning import plan_query
+from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES, ScreeningLabelRecord
 
 
 STOP_WORDS = {
@@ -36,7 +36,7 @@ STOP_WORDS = {
     "in",
     "into",
     "is",
-    "jarvis",
+    "friday",
     "me",
     "of",
     "on",
@@ -395,7 +395,7 @@ def build_llm_review_queue(
 
 
 def auto_label_batch_items(
-    store: JarvisStore,
+    store: FridayStore,
     batch_id: str,
     *,
     query: str | None = None,

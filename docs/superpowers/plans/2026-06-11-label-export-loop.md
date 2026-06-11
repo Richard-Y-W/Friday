@@ -4,16 +4,16 @@
 
 **Goal:** Export screening labels and paper metadata as a reusable training/evaluation dataset for future relevance classifiers.
 
-**Architecture:** Add a focused `jarvis_research.label_export` module that flattens batch items, current screening labels, source-gate data, relevance metadata, and smart review-queue rationale into row dictionaries. Extend `jarvis labels` with an `export` action supporting `--latest`, `--batch-id`, or `--all`, plus JSONL and CSV renderers.
+**Architecture:** Add a focused `friday.label_export` module that flattens batch items, current screening labels, source-gate data, relevance metadata, and smart review-queue rationale into row dictionaries. Extend `friday labels` with an `export` action supporting `--latest`, `--batch-id`, or `--all`, plus JSONL and CSV renderers.
 
-**Tech Stack:** Python standard library, existing SQLite-backed `JarvisStore`, existing screening/review-queue utilities, `unittest`.
+**Tech Stack:** Python standard library, existing SQLite-backed `FridayStore`, existing screening/review-queue utilities, `unittest`.
 
 ---
 
 ### Task 1: Export Row Builder
 
 **Files:**
-- Create: `jarvis_research/label_export.py`
+- Create: `friday/label_export.py`
 - Test: `tests/test_label_export.py`
 
 - [x] **Step 1: Write failing exporter tests**
@@ -23,7 +23,7 @@ Add tests that create batches with agent and human labels and assert rows includ
 - [x] **Step 2: Run tests to verify failure**
 
 Run: `python3 -m unittest tests.test_label_export -v`
-Expected: FAIL because `jarvis_research.label_export` does not exist.
+Expected: FAIL because `friday.label_export` does not exist.
 
 - [x] **Step 3: Implement exporter module**
 
@@ -37,14 +37,14 @@ Expected: PASS.
 ### Task 2: CLI Export Command
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI tests**
 
 Add tests for:
-- `jarvis labels export --latest --format jsonl --output labels.jsonl`
-- `jarvis labels export --all --format csv --output labels.csv`
+- `friday labels export --latest --format jsonl --output labels.jsonl`
+- `friday labels export --all --format csv --output labels.csv`
 
 - [x] **Step 2: Run tests to verify failure**
 

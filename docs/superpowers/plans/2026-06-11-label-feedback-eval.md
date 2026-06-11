@@ -4,16 +4,16 @@
 
 **Goal:** Add label evaluation, threshold recommendations, and stronger human-feedback weighting.
 
-**Architecture:** Create `jarvis_research.label_eval` for pure evaluation logic. Extend `jarvis labels` with an `eval` action for text/JSON output. Update screening recommendation and deep-read ordering to prefer human feedback while preserving existing source-gate and label safety behavior.
+**Architecture:** Create `friday.label_eval` for pure evaluation logic. Extend `friday labels` with an `eval` action for text/JSON output. Update screening recommendation and deep-read ordering to prefer human feedback while preserving existing source-gate and label safety behavior.
 
-**Tech Stack:** Python standard library, existing SQLite-backed `JarvisStore`, existing screening label records, `unittest`.
+**Tech Stack:** Python standard library, existing SQLite-backed `FridayStore`, existing screening label records, `unittest`.
 
 ---
 
 ### Task 1: Label Evaluation Module
 
 **Files:**
-- Create: `jarvis_research/label_eval.py`
+- Create: `friday/label_eval.py`
 - Test: `tests/test_label_eval.py`
 
 - [x] **Step 1: Write failing eval tests**
@@ -23,7 +23,7 @@ Add tests that build human labels with notes like `agent=relevant confidence=0.9
 - [x] **Step 2: Run tests to verify failure**
 
 Run: `python3 -m unittest tests.test_label_eval -v`
-Expected: FAIL because `jarvis_research.label_eval` does not exist.
+Expected: FAIL because `friday.label_eval` does not exist.
 
 - [x] **Step 3: Implement eval module**
 
@@ -37,14 +37,14 @@ Expected: PASS.
 ### Task 2: CLI Eval Action
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI tests**
 
 Add tests for:
-- `jarvis labels eval --latest`
-- `jarvis labels eval --latest --format json`
+- `friday labels eval --latest`
+- `friday labels eval --latest --format json`
 
 - [x] **Step 2: Run CLI tests to verify failure**
 
@@ -63,7 +63,7 @@ Expected: PASS.
 ### Task 3: Feedback Weighting
 
 **Files:**
-- Modify: `jarvis_research/screening.py`
+- Modify: `friday/screening.py`
 - Test: `tests/test_screening.py`
 
 - [x] **Step 1: Write failing screening tests**

@@ -9,11 +9,11 @@ Add a curated, JSON-backed gold eval corpus so the offline eval suite can check 
 This feature adds:
 
 - `eval_corpus/gold_cases.json`
-- `jarvis_research.eval_corpus`
-- `jarvis eval-suite run --suite gold`
+- `friday.eval_corpus`
+- `friday eval-suite run --suite gold`
 - CI coverage for the gold suite
 
-The gold suite remains offline. It does not browse the web, call scholarly APIs, download PDFs, execute files, or call an LLM. It evaluates local fixture metadata through existing JarvisResearch modules.
+The gold suite remains offline. It does not browse the web, call scholarly APIs, download PDFs, execute files, or call an LLM. It evaluates local fixture metadata through existing Friday modules.
 
 ## Corpus Format
 
@@ -47,7 +47,7 @@ Supported case types:
 
 ## Eval Integration
 
-`jarvis_research.eval_corpus` loads the JSON file, validates a minimal schema, and converts corpus entries into `EvalCase` instances. `jarvis_research.eval_suite` adds `gold` to `available_eval_suites()` and appends gold cases to the default case list.
+`friday.eval_corpus` loads the JSON file, validates a minimal schema, and converts corpus entries into `EvalCase` instances. `friday.eval_suite` adds `gold` to `available_eval_suites()` and appends gold cases to the default case list.
 
 `core` remains the full suite and includes gold cases. `gold` filters to only corpus-backed cases.
 

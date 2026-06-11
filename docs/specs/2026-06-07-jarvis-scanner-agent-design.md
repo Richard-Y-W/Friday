@@ -1,13 +1,13 @@
-# Jarvis Scanner Agent Design
+# Friday Scanner Agent Design
 
 Date: 2026-06-07
 Status: Approved direction, awaiting user review before implementation planning
 
 ## Summary
 
-Jarvis is the local umbrella name for a safe research assistant. The first build is `jarvis scan`, which calls Scanner Agent V1: a scholarly-only ingestion and evidence-extraction agent. It reads papers, not arbitrary web pages or code repositories. It treats all paper content as untrusted evidence, extracts auditable claims, and stores provenance for later research workflows.
+Friday is the local umbrella name for a safe research assistant. The first build is `friday scan`, which calls Scanner Agent V1: a scholarly-only ingestion and evidence-extraction agent. It reads papers, not arbitrary web pages or code repositories. It treats all paper content as untrusted evidence, extracts auditable claims, and stores provenance for later research workflows.
 
-The later `jarvis research` mode will search broad scholarly indexes, screen hundreds or thousands of candidate papers, deep-read a selected subset through `jarvis scan`, and write cited evidence reports. That mode depends on Scanner Agent V1 because broad search without a trustworthy scanner would produce summaries without reliable provenance.
+The later `friday research` mode will search broad scholarly indexes, screen hundreds or thousands of candidate papers, deep-read a selected subset through `friday scan`, and write cited evidence reports. That mode depends on Scanner Agent V1 because broad search without a trustworthy scanner would produce summaries without reliable provenance.
 
 ## Goals
 
@@ -21,7 +21,7 @@ The later `jarvis research` mode will search broad scholarly indexes, screen hun
 
 ## Non-Goals
 
-- Jarvis Scanner V1 will not clone repositories, inspect GitHub code, execute paper-provided scripts, or ingest arbitrary supplementary files.
+- Friday Scanner V1 will not clone repositories, inspect GitHub code, execute paper-provided scripts, or ingest arbitrary supplementary files.
 - It will not claim to deeply read every candidate discovered in a large query unless explicitly run in an all-deep mode.
 - It will not replace human judgment for paper quality, novelty, or final scientific claims.
 - It will not initially implement autonomous hypothesis generation or multi-day discovery loops.
@@ -31,49 +31,49 @@ The later `jarvis research` mode will search broad scholarly indexes, screen hun
 Primary commands:
 
 ```bash
-jarvis scan <paper-url-or-doi>
-jarvis scan --query "<scholarly query>" --limit 1000
-jarvis scan --manifest papers.csv
-jarvis scan --all-deep --manifest papers.csv
-jarvis label --batch-id <batch-id> --source <paper-url-or-doi> --label relevant
-jarvis labels --batch-id <batch-id> --recommend
-jarvis auto-label --batch-id <batch-id> --apply
-jarvis auto-label --batch-id <batch-id> --provider llm --model gpt-5.5 --dry-run
-jarvis
-jarvis> tell me about MALDI AMR
-jarvis> jarvis tell me about the importance of math in language
-jarvis> /settings
-jarvis /settings
-jarvis /settings set auto_label.provider llm
-jarvis /settings set auto_label.model gpt-5.5
-jarvis /settings set research.limit 250
-jarvis what is the importance of math in language
-jarvis tell me about MALDI AMR --deep-read-limit 5 --write
-jarvis tell me about MALDI AMR --write --write-output draft.md
-jarvis report <scan-id-or-batch-id>
-jarvis write --latest --mode literature-review
+friday scan <paper-url-or-doi>
+friday scan --query "<scholarly query>" --limit 1000
+friday scan --manifest papers.csv
+friday scan --all-deep --manifest papers.csv
+friday label --batch-id <batch-id> --source <paper-url-or-doi> --label relevant
+friday labels --batch-id <batch-id> --recommend
+friday auto-label --batch-id <batch-id> --apply
+friday auto-label --batch-id <batch-id> --provider llm --model gpt-5.5 --dry-run
+friday
+friday> tell me about MALDI AMR
+friday> friday tell me about the importance of math in language
+friday> /settings
+friday /settings
+friday /settings set auto_label.provider llm
+friday /settings set auto_label.model gpt-5.5
+friday /settings set research.limit 250
+friday what is the importance of math in language
+friday tell me about MALDI AMR --deep-read-limit 5 --write
+friday tell me about MALDI AMR --write --write-output draft.md
+friday report <scan-id-or-batch-id>
+friday write --latest --mode literature-review
 ```
 
 Command meanings:
 
-- `jarvis scan <paper-url-or-doi>` scans one allowed scholarly source.
-- `jarvis scan --query ...` discovers and screens many candidates, then deep-scans a selected subset.
-- `jarvis scan --manifest ...` scans or screens a supplied list of DOIs, arXiv IDs, PubMed IDs, or allowlisted PDF URLs.
-- `jarvis scan --all-deep ...` deep-scans every safe PDF in a manifest and requires explicit user intent because it can be slow and expensive.
-- `jarvis label ...` stores a human screening decision for a batch item.
-- `jarvis labels ... --recommend` lists label counts and recommends unlabeled papers using prior relevant/irrelevant decisions.
-- `jarvis auto-label ...` applies metadata-only agent labels with confidence, rationale, and signals. The default `heuristic` provider is no-token. The optional `llm` provider uses a strict JSON response contract and should be run in `--dry-run` mode first when token cost matters.
-- Plain `jarvis` opens an interactive shell when run in a real terminal. It keeps `jarvis --help` and non-interactive invocations script-safe.
-- Inside the shell, natural lines such as `tell me about MALDI AMR` run the scholarly flow with saved settings and write a report package automatically. The shell also accepts the redundant prefix, so `jarvis tell me about MALDI AMR` works at the prompt.
-- Successful shell research runs also copy the reader-facing report PDF to `~/Desktop/JarvisReports/<query-slug>-<timestamp>.pdf` while keeping the complete package under `.jarvis/reports/...`.
-- `jarvis /settings ...` shows or updates saved defaults used by natural-language research runs.
-- `jarvis <natural language question>` routes unknown commands into the scholarly-only research flow.
-- `jarvis <natural language question> --write` runs the same scholarly scan and then drafts an evidence-bound literature-review note from the page-anchored batch report.
-- `jarvis report ...` emits a cited summary from the evidence database.
-- `jarvis write ...` drafts from an existing batch report without repeating discovery or PDF parsing.
+- `friday scan <paper-url-or-doi>` scans one allowed scholarly source.
+- `friday scan --query ...` discovers and screens many candidates, then deep-scans a selected subset.
+- `friday scan --manifest ...` scans or screens a supplied list of DOIs, arXiv IDs, PubMed IDs, or allowlisted PDF URLs.
+- `friday scan --all-deep ...` deep-scans every safe PDF in a manifest and requires explicit user intent because it can be slow and expensive.
+- `friday label ...` stores a human screening decision for a batch item.
+- `friday labels ... --recommend` lists label counts and recommends unlabeled papers using prior relevant/irrelevant decisions.
+- `friday auto-label ...` applies metadata-only agent labels with confidence, rationale, and signals. The default `heuristic` provider is no-token. The optional `llm` provider uses a strict JSON response contract and should be run in `--dry-run` mode first when token cost matters.
+- Plain `friday` opens an interactive shell when run in a real terminal. It keeps `friday --help` and non-interactive invocations script-safe.
+- Inside the shell, natural lines such as `tell me about MALDI AMR` run the scholarly flow with saved settings and write a report package automatically. The shell also accepts the redundant prefix, so `friday tell me about MALDI AMR` works at the prompt.
+- Successful shell research runs also copy the reader-facing report PDF to `~/Desktop/FridayReports/<query-slug>-<timestamp>.pdf` while keeping the complete package under `.friday/reports/...`.
+- `friday /settings ...` shows or updates saved defaults used by natural-language research runs.
+- `friday <natural language question>` routes unknown commands into the scholarly-only research flow.
+- `friday <natural language question> --write` runs the same scholarly scan and then drafts an evidence-bound literature-review note from the page-anchored batch report.
+- `friday report ...` emits a cited summary from the evidence database.
+- `friday write ...` drafts from an existing batch report without repeating discovery or PDF parsing.
 
 The natural-language fallback is not a general chatbot. It is a wrapper over the same scholarly-only scanner, auto-labeler, safe PDF reader, and cited report renderer.
-For recognized casual research prompts, Jarvis rewrites conversational wording into safer scholarly query variants before discovery. For example, `what is the importance of math in language` becomes searches such as `mathematical linguistics`, `formal language theory natural language`, and `information theory language`, instead of searching primarily for weak words like `what` or `importance`.
+For recognized casual research prompts, Friday rewrites conversational wording into safer scholarly query variants before discovery. For example, `what is the importance of math in language` becomes searches such as `mathematical linguistics`, `formal language theory natural language`, and `information theory language`, instead of searching primarily for weak words like `what` or `importance`.
 With `--write` or `--draft`, the natural fallback feeds the generated batch report into the writing copilot. The draft is still evidence-bound: it uses only extracted page-level evidence and marks unsupported areas as `MATERIAL GAP`. `--output` remains the scanner report path; `--write-output` writes the draft or writing package separately.
 Writing packages now include both machine-readable handoff files and a reader-facing report: `report.md`, `report.pdf`, `literature_table.csv`, `evidence_table.csv`, `citation_audit.json`, raw writing JSON, paper references, screening labels, supported paragraphs, blocked paragraphs, and material gaps. The generated PDF is a simple local rendering of the evidence-bound Markdown report, not a free-form web summary.
 
@@ -100,7 +100,7 @@ Manual override is not part of V1. If a source is blocked, the output records th
 
 ### 1. Discover
 
-For query or batch mode, Jarvis queries scholarly indexes rather than general web search. The first candidate set is metadata-only: title, abstract, DOI, arXiv ID, PMID/PMCID, authors, venue, year, citation counts where available, source URL, and available full-text links.
+For query or batch mode, Friday queries scholarly indexes rather than general web search. The first candidate set is metadata-only: title, abstract, DOI, arXiv ID, PMID/PMCID, authors, venue, year, citation counts where available, source URL, and available full-text links.
 
 ### 2. Gate
 
@@ -132,7 +132,7 @@ Default batch behavior screens hundreds or thousands and deep-reads only a selec
 
 Agent auto-labeling is conservative and auditable. It ignores conversational prompt filler, does not count a candidate's stored query variant as evidence for relevance, and records overlap signals used for each label. Domain-specific prompt rewrites can add stricter checks; for mathematical-language prompts, generic language-model or clinical-language papers are not marked `relevant` unless the metadata also contains mathematical or formal-language signals.
 
-LLM-backed auto-labeling is optional and disabled by default. When enabled through `auto_label.provider=llm` or `jarvis auto-label --provider llm`, the model receives only metadata and query-plan fields: title, abstract, journal, MeSH terms, OpenAlex concepts, identifiers, year, relevance score, and query variants. It does not receive PDF files, parsed paper text, local paths, API keys, commands, or tools. The response must be strict JSON with `label`, `confidence`, `rationale`, `evidence_terms`, and `exclusion_reason`; invalid or failed responses are skipped rather than written. Human labels continue to override all agent labels.
+LLM-backed auto-labeling is optional and disabled by default. When enabled through `auto_label.provider=llm` or `friday auto-label --provider llm`, the model receives only metadata and query-plan fields: title, abstract, journal, MeSH terms, OpenAlex concepts, identifiers, year, relevance score, and query variants. It does not receive PDF files, parsed paper text, local paths, API keys, commands, or tools. The response must be strict JSON with `label`, `confidence`, `rationale`, `evidence_terms`, and `exclusion_reason`; invalid or failed responses are skipped rather than written. Human labels continue to override all agent labels.
 
 ### 4. Parse
 
@@ -186,7 +186,7 @@ The storage format can start as SQLite plus local files for PDFs and parsed arti
 
 ## Batch Semantics
 
-`jarvis scan --query ... --limit 1000` means:
+`friday scan --query ... --limit 1000` means:
 
 - discover up to 1,000 scholarly candidates
 - screen all candidates by metadata

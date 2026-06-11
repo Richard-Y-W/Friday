@@ -23,7 +23,7 @@ Add `eval_corpus/real_smoke_labels.json` with 30 `screening_label` cases derived
 - importance of math in language: 10 reviewed `maybe` rows
 - sepsis procalcitonin antibiotic stewardship: 10 reviewed `maybe` rows
 
-The fixture is offline and stores enough metadata for deterministic `auto_label_batch_items` evaluation. It must not depend on `.jarvis`, Desktop files, live APIs, PDFs, or an LLM.
+The fixture is offline and stores enough metadata for deterministic `auto_label_batch_items` evaluation. It must not depend on `.friday`, Desktop files, live APIs, PDFs, or an LLM.
 
 ## Eval Suite
 
@@ -32,8 +32,8 @@ Add a `real-smoke` eval suite. `core` should include `real-smoke` cases so the f
 Expected commands:
 
 ```bash
-python3 -m jarvis_research eval-suite run --suite real-smoke
-python3 -m jarvis_research eval-suite run --suite core
+python3 -m friday eval-suite run --suite real-smoke
+python3 -m friday eval-suite run --suite core
 ```
 
 The real-smoke suite should fail before tuning, because current heuristics label these rows as `maybe`. After tuning, the suite should pass.
@@ -68,4 +68,4 @@ Add tests for:
 - real-smoke suite passing after tuning
 - focused screening tests for off-domain biomedical false positives and math-language promotion
 
-Run the focused tests first, then full `python3 -m unittest discover -v`, then `python3 -m jarvis_research eval-suite run --suite real-smoke`.
+Run the focused tests first, then full `python3 -m unittest discover -v`, then `python3 -m friday eval-suite run --suite real-smoke`.

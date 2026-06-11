@@ -2,19 +2,19 @@
 
 ## Goal
 
-Add a CLI-first `run-summary` command that tells the user what happened in the latest research run or batch, what needs attention, and which Jarvis command to run next.
+Add a CLI-first `run-summary` command that tells the user what happened in the latest research run or batch, what needs attention, and which Friday command to run next.
 
 ## Scope
 
-This is an operational summary over existing local JarvisResearch state. It does not browse the web, call an LLM, retry PDFs, train a model, or change labels. It reads the SQLite store and reuses existing artifact builders, label evaluation, review queue, and rejection log logic.
+This is an operational summary over existing local Friday state. It does not browse the web, call an LLM, retry PDFs, train a model, or change labels. It reads the SQLite store and reuses existing artifact builders, label evaluation, review queue, and rejection log logic.
 
 ## Command
 
 ```bash
-jarvis run-summary --latest
-jarvis run-summary --latest --format json
-jarvis run-summary --run-id run_...
-jarvis run-summary --batch-id batch_...
+friday run-summary --latest
+friday run-summary --latest --format json
+friday run-summary --run-id run_...
+friday run-summary --batch-id batch_...
 ```
 
 `--latest` prefers the latest research run. If no research run exists, it falls back to the latest batch. `--run-id` uses the run and its linked batch. `--batch-id` summarizes a batch without run-level metadata.
@@ -33,7 +33,7 @@ The text output should be short and scannable. JSON output should expose the ful
 
 ## Design
 
-Create `jarvis_research.run_summary` with pure functions:
+Create `friday.run_summary` with pure functions:
 
 - `build_run_summary_dashboard(store, latest=False, run_id=None, batch_id=None, limit=5)`
 - `render_run_summary_text(summary)`

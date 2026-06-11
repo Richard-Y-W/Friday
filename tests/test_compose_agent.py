@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.compose_agent import (
+from friday.compose_agent import (
     ComposePackageError,
     build_compose_package_files,
 )

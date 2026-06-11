@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from jarvis_research.cited_report import build_cited_evidence_data, render_cited_evidence_report
-from jarvis_research.claim_audit import build_claim_support_audit
-from jarvis_research.evidence import is_reportable_evidence_text
-from jarvis_research.screening import build_screening_label_summary
-from jarvis_research.storage import BatchItemRecord, JarvisStore, PdfArtifactRecord
+from friday.cited_report import build_cited_evidence_data, render_cited_evidence_report
+from friday.claim_audit import build_claim_support_audit
+from friday.evidence import is_reportable_evidence_text
+from friday.screening import build_screening_label_summary
+from friday.storage import BatchItemRecord, FridayStore, PdfArtifactRecord
 
 
-def render_scan_report(store: JarvisStore, scan_id: str) -> str:
+def render_scan_report(store: FridayStore, scan_id: str) -> str:
     data = render_scan_report_json(store, scan_id)
     scan = data["scan"]
     lines = [
@@ -34,11 +34,11 @@ def render_scan_report(store: JarvisStore, scan_id: str) -> str:
     return "\n".join(lines)
 
 
-def render_scan_report_markdown(store: JarvisStore, scan_id: str) -> str:
+def render_scan_report_markdown(store: FridayStore, scan_id: str) -> str:
     data = render_scan_report_json(store, scan_id)
     scan = data["scan"]
     lines = [
-        "# Jarvis Scan Report",
+        "# Friday Scan Report",
         "",
         f"- Scan ID: `{scan['scan_id']}`",
         f"- Created: {scan['created_at']}",
@@ -62,7 +62,7 @@ def render_scan_report_markdown(store: JarvisStore, scan_id: str) -> str:
     return "\n".join(lines)
 
 
-def render_scan_report_json(store: JarvisStore, scan_id: str) -> dict[str, Any]:
+def render_scan_report_json(store: FridayStore, scan_id: str) -> dict[str, Any]:
     scan = store.get_scan(scan_id)
     return {
         "report_type": "scan",
@@ -84,7 +84,7 @@ def render_scan_report_json(store: JarvisStore, scan_id: str) -> dict[str, Any]:
     }
 
 
-def render_batch_report(store: JarvisStore, batch_id: str) -> str:
+def render_batch_report(store: FridayStore, batch_id: str) -> str:
     data = build_batch_report_data(store, batch_id)
     batch = data["batch"]
     lines = [
@@ -119,12 +119,12 @@ def render_batch_report(store: JarvisStore, batch_id: str) -> str:
     return "\n".join(lines)
 
 
-def render_batch_report_markdown(store: JarvisStore, batch_id: str) -> str:
+def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
     data = build_batch_report_data(store, batch_id)
     batch = data["batch"]
     cited = data["cited_evidence"]
     lines = [
-        "# Jarvis Batch Report",
+        "# Friday Batch Report",
         "",
         "## Coverage",
         "",
@@ -215,11 +215,11 @@ def render_batch_report_markdown(store: JarvisStore, batch_id: str) -> str:
     return "\n".join(lines).rstrip()
 
 
-def render_batch_report_json(store: JarvisStore, batch_id: str) -> dict[str, Any]:
+def render_batch_report_json(store: FridayStore, batch_id: str) -> dict[str, Any]:
     return build_batch_report_data(store, batch_id)
 
 
-def build_batch_report_data(store: JarvisStore, batch_id: str) -> dict[str, Any]:
+def build_batch_report_data(store: FridayStore, batch_id: str) -> dict[str, Any]:
     batch = store.get_batch(batch_id)
     items = store.list_batch_items(batch.batch_id)
     labels = store.list_screening_labels(batch.batch_id)
@@ -303,7 +303,7 @@ def _batch_item_data(item: BatchItemRecord, screening_label: dict[str, object] |
     }
 
 
-def _pdf_artifact_data(store: JarvisStore, artifact: PdfArtifactRecord) -> dict[str, Any]:
+def _pdf_artifact_data(store: FridayStore, artifact: PdfArtifactRecord) -> dict[str, Any]:
     evidence = [
         record
         for record in store.list_evidence_records(artifact.artifact_id)
@@ -328,7 +328,7 @@ def _pdf_artifact_data(store: JarvisStore, artifact: PdfArtifactRecord) -> dict[
 
 
 def _evidence_status_data(
-    store: JarvisStore,
+    store: FridayStore,
     artifacts: list[PdfArtifactRecord],
 ) -> dict[str, Any]:
     stored_count = 0

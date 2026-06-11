@@ -4,7 +4,7 @@
 
 **Goal:** Spend LLM labeling calls on the papers most worth reviewing instead of blindly reviewing the first N batch items.
 
-**Architecture:** Add a deterministic review-queue scorer in `jarvis_research.screening` that ranks allowed non-human-labeled papers by label uncertainty, high-relevance conflicts, and source diversity. Reuse that queue in a new `jarvis review-queue` CLI command and in `research-run --auto-label-provider llm --llm-review-limit N`, then export queue rationale into run artifacts.
+**Architecture:** Add a deterministic review-queue scorer in `friday.screening` that ranks allowed non-human-labeled papers by label uncertainty, high-relevance conflicts, and source diversity. Reuse that queue in a new `friday review-queue` CLI command and in `research-run --auto-label-provider llm --llm-review-limit N`, then export queue rationale into run artifacts.
 
 **Tech Stack:** Python standard library, SQLite-backed existing storage, existing LLM label client abstraction, `unittest`.
 
@@ -13,7 +13,7 @@
 ### Task 1: Screening Review Queue
 
 **Files:**
-- Modify: `jarvis_research/screening.py`
+- Modify: `friday/screening.py`
 - Test: `tests/test_screening.py`
 
 - [x] **Step 1: Write failing queue tests**
@@ -44,7 +44,7 @@ Expected: PASS.
 ### Task 2: Queue-Aware Auto Labeling
 
 **Files:**
-- Modify: `jarvis_research/screening.py`
+- Modify: `friday/screening.py`
 - Test: `tests/test_screening.py`
 
 - [x] **Step 1: Write failing LLM selection test**
@@ -68,12 +68,12 @@ Expected: PASS.
 ### Task 3: CLI Preview
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI preview test**
 
-Add a test for `jarvis review-queue --latest --limit 3` that prints queued papers with score, reason, label, confidence, source, and title.
+Add a test for `friday review-queue --latest --limit 3` that prints queued papers with score, reason, label, confidence, source, and title.
 
 - [x] **Step 2: Run test to verify failure**
 
@@ -92,8 +92,8 @@ Expected: PASS.
 ### Task 4: Research Run Integration and Artifact Export
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
-- Modify: `jarvis_research/research_artifacts.py`
+- Modify: `friday/cli.py`
+- Modify: `friday/research_artifacts.py`
 - Test: `tests/test_cli.py`
 - Test: `tests/test_research_artifacts.py`
 

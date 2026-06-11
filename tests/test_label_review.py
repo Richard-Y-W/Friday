@@ -2,16 +2,16 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.label_review import build_label_review_rows
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.label_review import build_label_review_rows
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class LabelReviewTests(unittest.TestCase):
     def test_review_rows_prioritize_queue_candidates_and_filter_labels(self):
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=5, mode="query")
             maybe = Candidate(
                 provider="pubmed",

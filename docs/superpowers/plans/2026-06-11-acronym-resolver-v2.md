@@ -4,9 +4,9 @@
 
 **Goal:** Replace one-off acronym conditionals with a generic, registry-backed acronym resolver that can resolve known acronyms and audit unknown acronyms without hallucinating meanings.
 
-**Architecture:** Add `jarvis_research/acronyms.py` as the acronym registry and resolver. Refactor `jarvis_research/query_planning.py` to consume resolver output, preserve unknown acronyms, and keep existing query expansion behavior. Add gold eval cases and focused unit tests for biomedical, ML/NLP, computational, and unknown acronyms.
+**Architecture:** Add `friday/acronyms.py` as the acronym registry and resolver. Refactor `friday/query_planning.py` to consume resolver output, preserve unknown acronyms, and keep existing query expansion behavior. Add gold eval cases and focused unit tests for biomedical, ML/NLP, computational, and unknown acronyms.
 
-**Tech Stack:** Python standard library dataclasses, existing `unittest` suite, existing JarvisResearch gold eval corpus.
+**Tech Stack:** Python standard library dataclasses, existing `unittest` suite, existing Friday gold eval corpus.
 
 ---
 
@@ -38,13 +38,13 @@ Add tests asserting:
 
 Run: `python3 -m unittest tests.test_acronyms tests.test_query_planning -v`
 
-Expected: fail because `jarvis_research.acronyms` does not exist and query planning has no generic resolver yet.
+Expected: fail because `friday.acronyms` does not exist and query planning has no generic resolver yet.
 
 ### Task 2: Resolver Implementation
 
 **Files:**
-- Create: `jarvis_research/acronyms.py`
-- Modify: `jarvis_research/query_planning.py`
+- Create: `friday/acronyms.py`
+- Modify: `friday/query_planning.py`
 
 - [x] **Step 1: Implement acronym registry**
 
@@ -76,11 +76,11 @@ Add query-plan cases for PCR, CNN, SVM, LLM/NLP, and an unknown acronym. The unk
 
 - [x] **Step 2: Extend gold evaluator if needed**
 
-If the gold case needs to assert unresolved acronyms, add support for `unresolved_acronyms_contains` in `jarvis_research/eval_corpus.py`.
+If the gold case needs to assert unresolved acronyms, add support for `unresolved_acronyms_contains` in `friday/eval_corpus.py`.
 
 - [x] **Step 3: Run gold eval**
 
-Run: `python3 -m jarvis_research eval-suite run --suite gold`
+Run: `python3 -m friday eval-suite run --suite gold`
 
 Expected: all cases pass.
 
@@ -95,7 +95,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_acronyms tests.test_query_planning tests.test_eval_corpus tests.test_eval_suite -v
-python3 -m jarvis_research eval-suite run --suite gold
+python3 -m friday eval-suite run --suite gold
 ```
 
 - [x] **Step 2: Run full suite**

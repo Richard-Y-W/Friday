@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a local evaluation suite for JarvisResearch so we can run a deterministic scorecard over the research agent's core safety and quality behaviors before scaling to larger paper runs.
+Add a local evaluation suite for Friday so we can run a deterministic scorecard over the research agent's core safety and quality behaviors before scaling to larger paper runs.
 
 ## Scope
 
@@ -11,16 +11,16 @@ The first version is CLI-first and offline. It does not discover live papers, br
 Commands:
 
 ```bash
-jarvis eval-suite run
-jarvis eval-suite run --suite biomedical
-jarvis eval-suite run --suite natural-language
-jarvis eval-suite run --format json
-jarvis eval-suite list
+friday eval-suite run
+friday eval-suite run --suite biomedical
+friday eval-suite run --suite natural-language
+friday eval-suite run --format json
+friday eval-suite list
 ```
 
 ## Architecture
 
-Create a focused `jarvis_research.eval_suite` module that owns suite definitions, deterministic fixture setup, case execution, score aggregation, and text rendering. Extend `jarvis_research.cli` with a thin `eval-suite` command that delegates to the module and prints text or JSON.
+Create a focused `friday.eval_suite` module that owns suite definitions, deterministic fixture setup, case execution, score aggregation, and text rendering. Extend `friday.cli` with a thin `eval-suite` command that delegates to the module and prints text or JSON.
 
 Each case has a stable `case_id`, suite name, category, expected behavior, and evaluator function. Evaluators call real project APIs:
 
@@ -31,7 +31,7 @@ Each case has a stable `case_id`, suite name, category, expected behavior, and e
 - `resolve_candidate_pdf_url` for safe PDF resolution without downloading.
 - `build_claim_support_audit` for page-anchored evidence auditing.
 
-Cases that need storage use an in-memory SQLite store and fixture batch records, so they do not depend on `.jarvis`.
+Cases that need storage use an in-memory SQLite store and fixture batch records, so they do not depend on `.friday`.
 
 ## Suites
 
@@ -75,8 +75,8 @@ Add pure module tests for:
 
 Add CLI tests for:
 
-- `jarvis eval-suite list`.
-- `jarvis eval-suite run`.
-- `jarvis eval-suite run --suite biomedical --format json`.
+- `friday eval-suite list`.
+- `friday eval-suite run`.
+- `friday eval-suite run --suite biomedical --format json`.
 - Unknown suite error.
 

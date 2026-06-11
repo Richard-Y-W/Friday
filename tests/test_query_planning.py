@@ -1,6 +1,6 @@
 import unittest
 
-from jarvis_research.query_planning import plan_query
+from friday.query_planning import plan_query
 
 
 class QueryPlanningTests(unittest.TestCase):
@@ -117,7 +117,7 @@ class QueryPlanningTests(unittest.TestCase):
         self.assertNotIn("what is the importance of math in language", plan.expanded_queries)
 
     def test_rewrites_language_computation_prompt_to_scholarly_queries(self):
-        plan = plan_query("jarvis tell me how language is computation")
+        plan = plan_query("friday tell me how language is computation")
 
         self.assertEqual(plan.intent, "mathematical_linguistics")
         self.assertIn("formal language theory natural language", plan.expanded_queries)

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add an offline `jarvis eval-suite` scorecard for core research-agent quality and safety behavior.
+**Goal:** Add an offline `friday eval-suite` scorecard for core research-agent quality and safety behavior.
 
-**Architecture:** Add `jarvis_research.eval_suite` for suite definitions, fixture execution, aggregation, and text rendering. Keep `jarvis_research.cli` thin by parsing `eval-suite list` and `eval-suite run`, then delegating to the module.
+**Architecture:** Add `friday.eval_suite` for suite definitions, fixture execution, aggregation, and text rendering. Keep `friday.cli` thin by parsing `eval-suite list` and `eval-suite run`, then delegating to the module.
 
-**Tech Stack:** Python standard library, `unittest`, existing JarvisResearch modules and SQLite store helpers.
+**Tech Stack:** Python standard library, `unittest`, existing Friday modules and SQLite store helpers.
 
 ---
 
@@ -14,14 +14,14 @@
 
 **Files:**
 - Create: `tests/test_eval_suite.py`
-- Create later: `jarvis_research/eval_suite.py`
+- Create later: `friday/eval_suite.py`
 
 - [x] **Step 1: Write failing module tests**
 
 ```python
 import unittest
 
-from jarvis_research.eval_suite import EvalCase, run_eval_suite, render_eval_report_text
+from friday.eval_suite import EvalCase, run_eval_suite, render_eval_report_text
 
 
 class EvalSuiteTests(unittest.TestCase):
@@ -67,7 +67,7 @@ class EvalSuiteTests(unittest.TestCase):
         report = run_eval_suite("safety")
         text = render_eval_report_text(report)
 
-        self.assertIn("Jarvis Eval Suite", text)
+        self.assertIn("Friday Eval Suite", text)
         self.assertIn("Suite: safety", text)
         self.assertIn("Status: pass", text)
         self.assertIn("safety.github_pdf_blocked", text)
@@ -76,9 +76,9 @@ class EvalSuiteTests(unittest.TestCase):
 - [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 -m unittest tests.test_eval_suite -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'jarvis_research.eval_suite'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'friday.eval_suite'`.
 
-- [x] **Step 3: Implement `jarvis_research.eval_suite`**
+- [x] **Step 3: Implement `friday.eval_suite`**
 
 Implement:
 
@@ -114,7 +114,7 @@ Expected: PASS.
 ### Task 2: CLI Integration
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Modify: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI tests**
@@ -129,7 +129,7 @@ self.assertIn("biomedical", output)
 
 code, output = self.run_cli(["eval-suite", "run"], tmp_path)
 self.assertEqual(code, 0)
-self.assertIn("Jarvis Eval Suite", output)
+self.assertIn("Friday Eval Suite", output)
 self.assertIn("Status: pass", output)
 
 code, output = self.run_cli(["eval-suite", "run", "--suite", "biomedical", "--format", "json"], tmp_path)
@@ -150,16 +150,16 @@ Expected: FAIL because `eval-suite` is not routed by the CLI.
 
 - [x] **Step 3: Implement CLI command**
 
-Add imports from `jarvis_research.eval_suite`, include `"eval-suite"` in `COMMAND_NAMES`, add parser subcommands:
+Add imports from `friday.eval_suite`, include `"eval-suite"` in `COMMAND_NAMES`, add parser subcommands:
 
 ```python
-eval_suite = subparsers.add_parser("eval-suite", help="Run offline Jarvis quality and safety evaluations.")
+eval_suite = subparsers.add_parser("eval-suite", help="Run offline Friday quality and safety evaluations.")
 eval_suite.add_argument("action", choices=("list", "run"))
 eval_suite.add_argument("--suite", default="core")
 eval_suite.add_argument("--format", choices=("text", "json"), default="text")
 ```
 
-Add `_handle_eval_suite(args)` and route it before store-backed commands because it does not need `.jarvis`.
+Add `_handle_eval_suite(args)` and route it before store-backed commands because it does not need `.friday`.
 
 - [x] **Step 4: Run CLI tests to verify they pass**
 

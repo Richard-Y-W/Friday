@@ -1,15 +1,15 @@
 import unittest
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.llm_labeling import LlmLabelResult
-from jarvis_research.screening import (
+from friday.discovery import Candidate
+from friday.llm_labeling import LlmLabelResult
+from friday.screening import (
     auto_label_batch_items,
     build_llm_review_queue,
     rank_deep_read_items,
     recommend_unlabeled_items,
 )
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class ScreeningTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query=query, limit=1, mode="screening_test")
             store.add_batch_item(
                 batch.batch_id,
@@ -36,7 +36,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=4, mode="query")
             relevant_seed = Candidate(
                 provider="pubmed",
@@ -91,7 +91,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="feedback weighting", limit=4, mode="query")
             human_seed = Candidate(
                 provider="openalex",
@@ -151,7 +151,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=2, mode="query")
             human_maybe = Candidate(
                 provider="pubmed",
@@ -196,7 +196,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="language math", limit=3, mode="query")
             relevant = Candidate(
                 provider="openalex",
@@ -252,7 +252,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="what is the importance of math in language", limit=4, mode="query")
             relevant = Candidate(
                 provider="openalex",
@@ -433,7 +433,7 @@ class ScreeningTests(unittest.TestCase):
                 )
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="math in language", limit=2, mode="query")
             llm_candidate = Candidate(
                 provider="openalex",
@@ -490,7 +490,7 @@ class ScreeningTests(unittest.TestCase):
                 raise RuntimeError("network unavailable")
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="math in language", limit=1, mode="query")
             candidate = Candidate(
                 provider="openalex",
@@ -525,7 +525,7 @@ class ScreeningTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=7, mode="query")
             blocked = Candidate(
                 provider="openalex",
@@ -640,7 +640,7 @@ class ScreeningTests(unittest.TestCase):
                 )
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="language math", limit=3, mode="query")
             first = Candidate(
                 provider="openalex",

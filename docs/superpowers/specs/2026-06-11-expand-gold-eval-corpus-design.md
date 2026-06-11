@@ -13,7 +13,7 @@ This expands `eval_corpus/gold_cases.json` to at least 25 cases across:
 - Ranking: biomedical-vs-NLP AMR collisions, MALDI AST/susceptibility, math-language ranking.
 - Screening labels: relevant, maybe, and irrelevant edge cases.
 
-The corpus format stays unchanged. `jarvis_research.eval_corpus` should still load and execute cases without network, browser, LLM, or PDF downloads.
+The corpus format stays unchanged. `friday.eval_corpus` should still load and execute cases without network, browser, LLM, or PDF downloads.
 
 ## Expected Behavior Fixes
 
@@ -31,7 +31,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_eval_corpus tests.test_eval_suite tests.test_relevance tests.test_screening tests.test_query_planning tests.test_source_policy -v
-python3 -m jarvis_research eval-suite run --suite gold
+python3 -m friday eval-suite run --suite gold
 python3 -m unittest discover -v
 ```
 

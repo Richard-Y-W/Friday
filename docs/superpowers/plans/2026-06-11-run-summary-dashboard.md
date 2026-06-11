@@ -4,16 +4,16 @@
 
 **Goal:** Add a `run-summary` command that summarizes the latest research run or batch and recommends next actions.
 
-**Architecture:** Add a focused `jarvis_research.run_summary` module for target resolution, structured dashboard construction, and text rendering. Extend `jarvis_research.cli` with a thin `run-summary` command that supports `--latest`, `--run-id`, `--batch-id`, `--format text|json`, and `--limit`.
+**Architecture:** Add a focused `friday.run_summary` module for target resolution, structured dashboard construction, and text rendering. Extend `friday.cli` with a thin `run-summary` command that supports `--latest`, `--run-id`, `--batch-id`, `--format text|json`, and `--limit`.
 
-**Tech Stack:** Python standard library, existing SQLite-backed `JarvisStore`, existing `label_eval`, `label_review`, `research_artifacts`, `screening`, and `unittest`.
+**Tech Stack:** Python standard library, existing SQLite-backed `FridayStore`, existing `label_eval`, `label_review`, `research_artifacts`, `screening`, and `unittest`.
 
 ---
 
 ### Task 1: Dashboard Builder
 
 **Files:**
-- Create: `jarvis_research/run_summary.py`
+- Create: `friday/run_summary.py`
 - Test: `tests/test_run_summary.py`
 
 - [x] **Step 1: Write failing builder tests**
@@ -23,7 +23,7 @@ Add tests that create a research run, batch items, agent/human labels, a failed 
 - [x] **Step 2: Run tests to verify failure**
 
 Run: `python3 -m unittest tests.test_run_summary -v`
-Expected: FAIL because `jarvis_research.run_summary` does not exist.
+Expected: FAIL because `friday.run_summary` does not exist.
 
 - [x] **Step 3: Implement dashboard builder**
 
@@ -37,15 +37,15 @@ Expected: PASS.
 ### Task 2: Text Renderer and CLI
 
 **Files:**
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_cli.py`
 
 - [x] **Step 1: Write failing CLI tests**
 
 Add tests for:
-- `jarvis run-summary --latest`
-- `jarvis run-summary --latest --format json`
-- `jarvis run-summary --latest` when no run or batch exists
+- `friday run-summary --latest`
+- `friday run-summary --latest --format json`
+- `friday run-summary --latest` when no run or batch exists
 
 - [x] **Step 2: Run CLI tests to verify failure**
 

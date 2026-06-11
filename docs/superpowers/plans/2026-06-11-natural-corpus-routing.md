@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let natural Jarvis queries use imported Zotero/folder/Obsidian corpus JSON when local corpus matches are strong enough, while preserving the existing scholarly discovery fallback.
+**Goal:** Let natural Friday queries use imported Zotero/folder/Obsidian corpus JSON when local corpus matches are strong enough, while preserving the existing scholarly discovery fallback.
 
-**Architecture:** Add a focused `jarvis_research.corpus_routing` module that loads configured corpus files, scores entries with deterministic metadata overlap, and renders a corpus route decision. Extend settings with corpus paths and routing thresholds, then branch `_handle_natural_language_query` to emit a corpus report when the router returns enough matches.
+**Architecture:** Add a focused `friday.corpus_routing` module that loads configured corpus files, scores entries with deterministic metadata overlap, and renders a corpus route decision. Extend settings with corpus paths and routing thresholds, then branch `_handle_natural_language_query` to emit a corpus report when the router returns enough matches.
 
 **Tech Stack:** Python standard library, existing JSON corpus artifacts, existing CLI/settings patterns, `unittest`.
 
@@ -13,7 +13,7 @@
 ### Task 1: Corpus Routing Module
 
 **Files:**
-- Create: `jarvis_research/corpus_routing.py`
+- Create: `friday/corpus_routing.py`
 - Test: `tests/test_corpus_routing.py`
 
 - [x] **Step 1: Write failing router tests**
@@ -23,7 +23,7 @@ Add tests for loading corpus JSON files, ranking entries by query overlap, rejec
 - [x] **Step 2: Run tests to verify failure**
 
 Run: `python3 -m unittest tests.test_corpus_routing -v`
-Expected: FAIL because `jarvis_research.corpus_routing` does not exist.
+Expected: FAIL because `friday.corpus_routing` does not exist.
 
 - [x] **Step 3: Implement router**
 
@@ -37,8 +37,8 @@ Expected: PASS.
 ### Task 2: Settings and Natural Query CLI Integration
 
 **Files:**
-- Modify: `jarvis_research/settings.py`
-- Modify: `jarvis_research/cli.py`
+- Modify: `friday/settings.py`
+- Modify: `friday/cli.py`
 - Test: `tests/test_settings.py`
 - Test: `tests/test_cli.py`
 

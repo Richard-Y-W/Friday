@@ -1,4 +1,4 @@
-from jarvis_research.cli import main
+from friday.cli import main
 
 
 if __name__ == "__main__":

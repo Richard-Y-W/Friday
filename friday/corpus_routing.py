@@ -215,7 +215,7 @@ _STOPWORDS = {
     "in",
     "is",
     "it",
-    "jarvis",
+    "friday",
     "me",
     "of",
     "on",

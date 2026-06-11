@@ -1,9 +1,9 @@
 import unittest
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.evidence import EvidenceItem
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.evidence import EvidenceItem
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class StorageTests(unittest.TestCase):
@@ -13,7 +13,7 @@ class StorageTests(unittest.TestCase):
             from pathlib import Path
 
             with TemporaryDirectory() as tmp:
-                store = JarvisStore(Path(tmp) / "jarvis.db")
+                store = FridayStore(Path(tmp) / "friday.db")
                 scan = store.create_scan(
                     "https://arxiv.org/pdf/2401.12345",
                     evaluate_source("https://arxiv.org/pdf/2401.12345"),
@@ -26,7 +26,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1000, mode="query")
             store.add_batch_item(
                 batch.batch_id,
@@ -43,7 +43,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=10, mode="query")
             candidate = Candidate(
                 provider="arxiv",
@@ -102,7 +102,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=10, mode="query")
             decision = evaluate_source("https://arxiv.org/pdf/2401.12345")
 
@@ -120,7 +120,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
             source = "https://arxiv.org/pdf/2401.12345"
             item = store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -156,7 +156,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="language math", limit=10, mode="query")
             source = "10.1038/example"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -197,7 +197,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             run = store.create_research_run(
                 query="MALDI AMR",
                 limit=1000,
@@ -250,7 +250,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             first = store.create_research_run(
                 query="first query",
                 limit=10,
@@ -278,7 +278,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             artifact = store.add_pdf_artifact(
                 batch.batch_id,
@@ -310,7 +310,7 @@ class StorageTests(unittest.TestCase):
         from pathlib import Path
 
         with TemporaryDirectory() as tmp:
-            store = JarvisStore(Path(tmp) / "jarvis.db")
+            store = FridayStore(Path(tmp) / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             artifact = store.add_pdf_artifact(
                 batch.batch_id,

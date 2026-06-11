@@ -2,10 +2,10 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jarvis_research.discovery import Candidate
-from jarvis_research.pdf_ingestion import DownloadedPdf, deep_read_source, resolve_candidate_pdf_url
-from jarvis_research.source_policy import evaluate_source
-from jarvis_research.storage import JarvisStore
+from friday.discovery import Candidate
+from friday.pdf_ingestion import DownloadedPdf, deep_read_source, resolve_candidate_pdf_url
+from friday.source_policy import evaluate_source
+from friday.storage import FridayStore
 
 
 class PdfIngestionTests(unittest.TestCase):
@@ -274,8 +274,8 @@ class PdfIngestionTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             store.add_batch_item(
                 batch.batch_id,
@@ -313,8 +313,8 @@ class PdfIngestionTests(unittest.TestCase):
             return ["First page text", "Second page text"]
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -363,8 +363,8 @@ class PdfIngestionTests(unittest.TestCase):
             ]
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -415,8 +415,8 @@ class PdfIngestionTests(unittest.TestCase):
             ]
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -450,8 +450,8 @@ class PdfIngestionTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -484,8 +484,8 @@ class PdfIngestionTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -517,8 +517,8 @@ class PdfIngestionTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             source = "https://arxiv.org/pdf/2401.12345v1"
             store.add_batch_item(batch.batch_id, source, evaluate_source(source))
@@ -553,8 +553,8 @@ class PdfIngestionTests(unittest.TestCase):
             raise AssertionError("DOI-only candidate should not be downloaded")
 
         with TemporaryDirectory() as tmp:
-            data_dir = Path(tmp) / ".jarvis"
-            store = JarvisStore(data_dir / "jarvis.db")
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
             batch = store.create_batch(query="test query", limit=1, mode="query")
             store.add_batch_item(
                 batch.batch_id,
