@@ -38,9 +38,13 @@ class EvalSuiteTests(unittest.TestCase):
 
         self.assertEqual(report["suite"], "real-smoke")
         self.assertEqual(report["status"], "pass")
-        self.assertEqual(report["counts"]["total"], 30)
+        self.assertGreaterEqual(report["counts"]["total"], 36)
         self.assertEqual({case["suite"] for case in report["cases"]}, {"real-smoke"})
         self.assertIn("real_smoke.maldi_amr.01", {case["case_id"] for case in report["cases"]})
+        self.assertIn(
+            "real_smoke.topic_curation.maldi_amr.broad_amr_blocked",
+            {case["case_id"] for case in report["cases"]},
+        )
 
     def test_failure_case_is_reported_without_raising(self):
         report = run_eval_suite(

@@ -80,22 +80,44 @@ class GoldEvalCorpusTests(unittest.TestCase):
         cases = load_real_smoke_eval_cases()
 
         self.assertTrue(REAL_SMOKE_CORPUS_PATH.exists())
-        self.assertEqual(len(cases), 30)
-        self.assertEqual({"screening_label"}, {case["type"] for case in cases})
+        self.assertGreaterEqual(len(cases), 36)
+        self.assertEqual({"screening_label", "topic_curation"}, {case["type"] for case in cases})
+        self.assertEqual(sum(1 for case in cases if case["type"] == "screening_label"), 30)
+        self.assertGreaterEqual(sum(1 for case in cases if case["type"] == "topic_curation"), 6)
         case_ids = [case["case_id"] for case in cases]
         self.assertEqual(len(case_ids), len(set(case_ids)))
         self.assertIn("real_smoke.maldi_amr.01", case_ids)
         self.assertIn("real_smoke.sepsis_procalcitonin.10", case_ids)
+        self.assertIn("real_smoke.topic_curation.maldi_amr.broad_amr_blocked", case_ids)
+        self.assertIn("real_smoke.topic_curation.protein_folding.generic_protein_blocked", case_ids)
         for case in cases:
             self.assertTrue(case["case_id"].startswith("real_smoke."))
-            self.assertIn(case["expected"]["label"], {"relevant", "maybe", "irrelevant"})
             self.assertIsInstance(case["candidate"], dict)
             self.assertIsInstance(case["query"], str)
             self.assertTrue(case["query"])
+            if case["type"] == "screening_label":
+                self.assertIn(case["expected"]["label"], {"relevant", "maybe", "irrelevant"})
+            if case["type"] == "topic_curation":
+                self.assertIn("eligible_for_deep_read", case["expected"])
 
     def test_real_smoke_corpus_converts_to_eval_cases(self):
         eval_cases = build_real_smoke_eval_cases()
 
-        self.assertEqual(len(eval_cases), 30)
+        self.assertGreaterEqual(len(eval_cases), 36)
         self.assertEqual({case.suite for case in eval_cases}, {"real-smoke"})
         self.assertTrue(all(case.case_id.startswith("real_smoke.") for case in eval_cases))
+
+    def test_real_smoke_topic_curation_cases_pass_against_current_pipeline(self):
+        eval_cases = [
+            case
+            for case in build_real_smoke_eval_cases()
+            if case.category == "topic_curation"
+        ]
+        failed = []
+        for case in eval_cases:
+            passed, message = case.run()
+            if not passed:
+                failed.append(f"{case.case_id}: {message}")
+
+        self.assertGreaterEqual(len(eval_cases), 6)
+        self.assertEqual(failed, [])

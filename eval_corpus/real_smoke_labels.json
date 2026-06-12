@@ -536,6 +536,157 @@
       "expected": {
         "label": "relevant"
       }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.maldi_amr.broad_amr_blocked",
+      "type": "topic_curation",
+      "description": "MALDI AMR smoke curation: broad AMR surveillance must not deep-read without MALDI/mass-spectrometry evidence.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "openalex",
+        "title": "Species distribution and antimicrobial resistance of Staphylococcus spp. isolated from dogs and cats in Poland: a retrospective laboratory-based study.",
+        "source_for_gate": "10.1000/real-smoke-broad-amr",
+        "abstract": "Species distribution and antimicrobial resistance were assessed in clinical isolates from companion animals.",
+        "query_variant": "MALDI antimicrobial resistance",
+        "relevance_score": 82
+      },
+      "expected": {
+        "eligible_for_deep_read": false,
+        "status": "topic_mismatch",
+        "reason": "missing_topic_component",
+        "missing_topic_components_contains": ["instrumentation.mass_spectrometry"],
+        "profile_topic_ids_contains": ["biomedical_amr.core", "instrumentation.mass_spectrometry"]
+      }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.maldi_amr.maldi_only_blocked",
+      "type": "topic_curation",
+      "description": "MALDI AMR smoke curation: MALDI chemistry without antimicrobial resistance must not deep-read.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "MALDI-TOF and Quantum Chemical Study of Non-stoichiometric Tantalum Oxychloride Clusters",
+        "source_for_gate": "https://arxiv.org/pdf/1912.09801v1",
+        "arxiv_id": "1912.09801v1",
+        "abstract": "MALDI-TOF spectroscopy and quantum chemical calculations study tantalum oxychloride clusters and thermodynamic stability.",
+        "query_variant": "MALDI-TOF antibiotic resistance",
+        "relevance_score": 73
+      },
+      "expected": {
+        "eligible_for_deep_read": false,
+        "status": "topic_mismatch",
+        "reason": "missing_topic_component",
+        "missing_topic_components_contains": ["biomedical_amr.core"],
+        "matched_topic_components_contains": ["instrumentation.mass_spectrometry"]
+      }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.maldi_amr.focused_maldi_amr_allowed",
+      "type": "topic_curation",
+      "description": "MALDI AMR smoke curation: focused MALDI-TOF antimicrobial resistance evidence remains deep-read eligible.",
+      "query": "MALDI AMR",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "MALDI-TOF antimicrobial resistance detection in clinical isolates",
+        "source_for_gate": "10.1000/real-smoke-focused-maldi-amr",
+        "abstract": "MALDI-TOF mass spectra support antibiotic resistance and antimicrobial susceptibility detection in clinical isolates.",
+        "journal": "Clinical Microbiology and Infection",
+        "mesh_terms": "Drug Resistance, Microbial; Mass Spectrometry",
+        "relevance_score": 94
+      },
+      "expected": {
+        "eligible_for_deep_read": true,
+        "status": "topic_match",
+        "matched_topic_components_contains": ["biomedical_amr.core", "instrumentation.mass_spectrometry"]
+      }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.protein_folding.generic_protein_blocked",
+      "type": "topic_curation",
+      "description": "Protein-folding smoke curation: a generic protein-synthesis paper must not pass a metadata-mined protein-folding profile.",
+      "query": "protein folding",
+      "profile_records": [
+        {
+          "provider": "openalex",
+          "title": "Protein folding dynamics with AlphaFold structural biology",
+          "source_for_gate": "10.1000/real-smoke-folding-seed-1",
+          "abstract": "Protein folding and structural biology benchmarks.",
+          "concepts": "Protein folding; Structural biology; Molecular dynamics; Biochemistry"
+        },
+        {
+          "provider": "openalex",
+          "title": "Protein folding pathways in molecular dynamics",
+          "source_for_gate": "10.1000/real-smoke-folding-seed-2",
+          "abstract": "Molecular dynamics simulations model protein folding pathways.",
+          "concepts": "Protein folding; Molecular dynamics; Biochemistry"
+        }
+      ],
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Streamlined cell-free protein synthesis using wheat germ extract.",
+        "source_for_gate": "10.1000/real-smoke-generic-protein",
+        "abstract": "A cell-free system improves protein synthesis yield in biochemical assays.",
+        "concepts": "Protein; Biochemistry; Chemistry",
+        "relevance_score": 55
+      },
+      "expected": {
+        "eligible_for_deep_read": false,
+        "status": "weak_topic_match",
+        "reason": "missing_profile_terms"
+      }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.protein_folding.focused_folding_allowed",
+      "type": "topic_curation",
+      "description": "Protein-folding smoke curation: a focused folding dynamics paper remains eligible under a metadata-mined profile.",
+      "query": "protein folding",
+      "profile_records": [
+        {
+          "provider": "openalex",
+          "title": "Protein folding dynamics with AlphaFold structural biology",
+          "source_for_gate": "10.1000/real-smoke-folding-seed-1",
+          "abstract": "Protein folding and structural biology benchmarks.",
+          "concepts": "Protein folding; Structural biology; Molecular dynamics; Biochemistry"
+        },
+        {
+          "provider": "openalex",
+          "title": "Protein folding pathways in molecular dynamics",
+          "source_for_gate": "10.1000/real-smoke-folding-seed-2",
+          "abstract": "Molecular dynamics simulations model protein folding pathways.",
+          "concepts": "Protein folding; Molecular dynamics; Biochemistry"
+        }
+      ],
+      "candidate": {
+        "provider": "openalex",
+        "title": "Protein folding dynamics in molecular simulations",
+        "source_for_gate": "10.1000/real-smoke-focused-folding",
+        "abstract": "Molecular dynamics simulations characterize protein folding pathways.",
+        "concepts": "Protein folding; Molecular dynamics; Structural biology",
+        "relevance_score": 88
+      },
+      "expected": {
+        "eligible_for_deep_read": true,
+        "status": "topic_match"
+      }
+    },
+    {
+      "case_id": "real_smoke.topic_curation.clinical.off_query_diagnostic_blocked",
+      "type": "topic_curation",
+      "description": "Clinical smoke curation: diagnostic-accuracy papers outside sepsis/procalcitonin/stewardship must not deep-read.",
+      "query": "sepsis procalcitonin antibiotic stewardship",
+      "candidate": {
+        "provider": "pubmed",
+        "title": "Clinical Diagnostic Accuracy of Parkinson's Disease: Where Do We Stand?",
+        "source_for_gate": "10.1000/real-smoke-parkinsons-diagnostic",
+        "abstract": "Diagnostic accuracy in clinical assessment of Parkinson's disease.",
+        "journal": "Neurology",
+        "relevance_score": 61
+      },
+      "expected": {
+        "eligible_for_deep_read": false,
+        "status": "topic_mismatch",
+        "reason": "missing_query_focus"
+      }
     }
   ]
 }

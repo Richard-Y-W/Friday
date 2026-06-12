@@ -11,11 +11,12 @@ from friday.relevance import rank_candidates
 from friday.screening import auto_label_batch_items
 from friday.source_policy import evaluate_source
 from friday.storage import FridayStore
+from friday.topic_planning import evaluate_topic_curation, plan_topic_for_records
 
 
 GOLD_CORPUS_PATH = Path(__file__).resolve().parent.parent / "eval_corpus" / "gold_cases.json"
 REAL_SMOKE_CORPUS_PATH = Path(__file__).resolve().parent.parent / "eval_corpus" / "real_smoke_labels.json"
-SUPPORTED_CASE_TYPES = {"query_plan", "source_policy", "ranking", "screening_label"}
+SUPPORTED_CASE_TYPES = {"query_plan", "source_policy", "ranking", "screening_label", "topic_curation"}
 
 
 def load_gold_eval_cases(path: Path = GOLD_CORPUS_PATH) -> list[dict[str, Any]]:
@@ -91,6 +92,8 @@ def _case_runner(case: dict[str, Any]):
         return lambda: _run_ranking_case(case)
     if case_type == "screening_label":
         return lambda: _run_screening_label_case(case)
+    if case_type == "topic_curation":
+        return lambda: _run_topic_curation_case(case)
     return lambda: (False, f"unsupported gold case type: {case_type}")
 
 
@@ -178,6 +181,35 @@ def _run_screening_label_case(case: dict[str, Any]) -> tuple[bool, str]:
     if decision.confidence < min_confidence:
         return False, f"expected confidence>={min_confidence}; got {decision.confidence}"
     return True, f"labeled as {decision.label} with confidence {decision.confidence}"
+
+
+def _run_topic_curation_case(case: dict[str, Any]) -> tuple[bool, str]:
+    candidate = _candidate_from_mapping(case["candidate"])
+    profile_records = [_candidate_from_mapping(record) for record in case.get("profile_records", [])]
+    profile = plan_topic_for_records(case["query"], profile_records or [candidate])
+    decision = evaluate_topic_curation(candidate, profile)
+    expected = case["expected"]
+
+    failures: list[str] = []
+    if "eligible_for_deep_read" in expected and decision.eligible_for_deep_read != expected["eligible_for_deep_read"]:
+        failures.append(f"eligible_for_deep_read={decision.eligible_for_deep_read!r}")
+    if expected.get("status") and decision.status != expected["status"]:
+        failures.append(f"status={decision.status!r}")
+    if expected.get("reason") and decision.reason != expected["reason"]:
+        failures.append(f"reason={decision.reason!r}")
+    for component_id in expected.get("missing_topic_components_contains", []):
+        if component_id not in decision.missing_topic_components:
+            failures.append(f"missing_component_absent={component_id!r}")
+    for component_id in expected.get("matched_topic_components_contains", []):
+        if component_id not in decision.matched_topic_components:
+            failures.append(f"matched_component_absent={component_id!r}")
+    for topic_id in expected.get("profile_topic_ids_contains", []):
+        if topic_id not in profile.topic_ids:
+            failures.append(f"profile_topic_absent={topic_id!r}")
+
+    if failures:
+        return False, "; ".join(failures)
+    return True, f"topic curation {decision.status}: {decision.reason}"
 
 
 def _candidate_from_mapping(data: dict[str, Any]) -> Candidate:
