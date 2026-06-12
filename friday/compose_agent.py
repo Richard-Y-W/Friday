@@ -467,6 +467,8 @@ def _prompt_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "text": row.get("text"),
                 "quality_label": row.get("quality_label"),
                 "quality_score": row.get("quality_score"),
+                "parse_confidence": row.get("parse_confidence"),
+                "parse_flags": row.get("parse_flags"),
             }
         )
     return prompt_rows
@@ -490,6 +492,8 @@ def _atomic_evidence_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     "text": entry.get("paragraph"),
                     "quality_label": None,
                     "quality_score": None,
+                    "parse_confidence": None,
+                    "parse_flags": [],
                 }
             )
     return rows
@@ -943,6 +947,8 @@ def _compact_table_row(row: dict[str, Any]) -> dict[str, Any]:
         "text": row.get("text"),
         "quality_label": row.get("quality_label"),
         "quality_score": row.get("quality_score"),
+        "parse_confidence": row.get("parse_confidence"),
+        "parse_flags": row.get("parse_flags"),
     }
 
 

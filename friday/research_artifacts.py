@@ -159,6 +159,8 @@ def build_rejection_log(store: FridayStore, batch_id: str) -> dict[str, Any]:
                     "evidence_id": record.evidence_id,
                     "status": record.quality_label,
                     "page_number": record.page_number,
+                    "parse_confidence": record.parse_confidence,
+                    "parse_flags": list(record.parse_flags),
                 }
             )
 

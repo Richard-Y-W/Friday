@@ -139,6 +139,8 @@ def _evidence_data_by_type(
                 "quality_label": record.quality_label,
                 "quality_score": record.quality_score,
                 "quality_flags": list(record.quality_flags),
+                "parse_confidence": record.parse_confidence,
+                "parse_flags": list(record.parse_flags),
             }
             for reference, record in records
         ]

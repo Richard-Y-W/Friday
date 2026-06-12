@@ -137,6 +137,8 @@ class ResearchArtifactTests(unittest.TestCase):
                         quality_label="blocked",
                         quality_score=0.2,
                         quality_flags=("column_stitching",),
+                        parse_confidence=0.42,
+                        parse_flags=("column_stitching",),
                     )
                 ],
             )
@@ -146,6 +148,8 @@ class ResearchArtifactTests(unittest.TestCase):
 
             self.assertEqual(rejection_log["counts"]["evidence_quality"], 1)
             self.assertEqual(rejection_log["rejected"][0]["stage"], "evidence_quality")
+            self.assertEqual(rejection_log["rejected"][0]["parse_confidence"], 0.42)
+            self.assertEqual(rejection_log["rejected"][0]["parse_flags"], ["column_stitching"])
             self.assertEqual(passport["artifacts"]["evidence_quality"]["blocked_by_flag"]["column_stitching"], 1)
 
     def test_research_run_summary_records_status_counts_and_policy(self):

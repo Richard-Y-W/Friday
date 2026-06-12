@@ -8,6 +8,7 @@ import re
 DEFAULT_MAX_EVIDENCE_ITEMS = 40
 DEFAULT_MAX_ITEMS_PER_TYPE = 8
 DEFAULT_MAX_TEXT_CHARS = 500
+MIN_PAGE_PARSE_CONFIDENCE = 0.6
 
 EVIDENCE_TYPES = {
     "claim",
@@ -228,6 +229,8 @@ class EvidenceItem:
     quality_label: str = "clean"
     quality_score: float = 1.0
     quality_flags: tuple[str, ...] = ()
+    parse_confidence: float = 1.0
+    parse_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -255,6 +258,9 @@ def extract_evidence_from_pages(
 def curate_evidence_from_pages(
     pages: list[str],
     *,
+    page_parse_confidences: list[float] | None = None,
+    page_parse_flags: list[tuple[str, ...]] | None = None,
+    min_page_parse_confidence: float = MIN_PAGE_PARSE_CONFIDENCE,
     max_items: int = DEFAULT_MAX_EVIDENCE_ITEMS,
     max_items_per_type: int = DEFAULT_MAX_ITEMS_PER_TYPE,
     max_text_chars: int = DEFAULT_MAX_TEXT_CHARS,
@@ -266,6 +272,20 @@ def curate_evidence_from_pages(
     type_counts = {evidence_type: 0 for evidence_type in EVIDENCE_TYPES}
 
     for page_number, page_text in enumerate(pages, start=1):
+        page_parse_confidence = (
+            page_parse_confidences[page_number - 1]
+            if page_parse_confidences and page_number - 1 < len(page_parse_confidences)
+            else 1.0
+        )
+        page_parse_flags_for_page = (
+            page_parse_flags[page_number - 1]
+            if page_parse_flags and page_number - 1 < len(page_parse_flags)
+            else ()
+        )
+        page_quality_flags = _page_parse_quality_flags(
+            page_parse_confidence,
+            min_page_parse_confidence=min_page_parse_confidence,
+        )
         page_accepted: list[EvidenceItem] = []
         page_blocked: list[EvidenceItem] = []
         body_text, reference_text = _split_reference_tail(page_text)
@@ -306,7 +326,9 @@ def curate_evidence_from_pages(
                         page_number=page_number,
                         quality_label=quality.label,
                         quality_score=quality.score,
-                        quality_flags=quality.flags,
+                        quality_flags=tuple(_ordered_unique([*quality.flags, *page_quality_flags])),
+                        parse_confidence=page_parse_confidence,
+                        parse_flags=page_parse_flags_for_page,
                     )
                 )
                 continue
@@ -318,6 +340,20 @@ def curate_evidence_from_pages(
                 continue
             if not _section_supports_evidence_type(section, evidence_type):
                 continue
+            if page_quality_flags:
+                page_blocked.append(
+                    EvidenceItem(
+                        evidence_type=evidence_type,
+                        text=text,
+                        page_number=page_number,
+                        quality_label="blocked",
+                        quality_score=min(quality.score, page_parse_confidence),
+                        quality_flags=page_quality_flags,
+                        parse_confidence=page_parse_confidence,
+                        parse_flags=page_parse_flags_for_page,
+                    )
+                )
+                continue
             page_accepted.append(
                 EvidenceItem(
                     evidence_type=evidence_type,
@@ -326,6 +362,8 @@ def curate_evidence_from_pages(
                     quality_label=quality.label,
                     quality_score=quality.score,
                     quality_flags=quality.flags,
+                    parse_confidence=page_parse_confidence,
+                    parse_flags=page_parse_flags_for_page,
                 )
             )
 
@@ -421,6 +459,16 @@ def _page_parse_quality_is_poor(accepted: list[EvidenceItem], blocked: list[Evid
     return len(blocked) >= 2 and (len(blocked) / evidence_like_count) >= 0.5
 
 
+def _page_parse_quality_flags(
+    parse_confidence: float,
+    *,
+    min_page_parse_confidence: float,
+) -> tuple[str, ...]:
+    if parse_confidence < min_page_parse_confidence:
+        return ("low_page_parse_confidence",)
+    return ()
+
+
 def _document_parse_quality_is_poor(
     accepted: list[EvidenceItem],
     blocked: list[EvidenceItem],
@@ -494,6 +542,8 @@ def _block_accepted_items(items: list[EvidenceItem], flag: str) -> list[Evidence
                 quality_label="blocked",
                 quality_score=min(item.quality_score, 0.4),
                 quality_flags=flags,
+                parse_confidence=item.parse_confidence,
+                parse_flags=item.parse_flags,
             )
         )
     return blocked

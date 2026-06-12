@@ -135,6 +135,8 @@ class EvidenceRecord:
     quality_label: str
     quality_score: float
     quality_flags: tuple[str, ...]
+    parse_confidence: float
+    parse_flags: tuple[str, ...]
     created_at: str
 
 
@@ -781,6 +783,8 @@ class FridayStore:
                 quality_label=item.quality_label,
                 quality_score=item.quality_score,
                 quality_flags=item.quality_flags,
+                parse_confidence=item.parse_confidence,
+                parse_flags=item.parse_flags,
                 created_at=created_at,
             )
             for item in items
@@ -796,8 +800,8 @@ class FridayStore:
                 """
                 insert into evidence_records (
                     evidence_id, artifact_id, evidence_type, page_number, text, char_count,
-                    quality_label, quality_score, quality_flags, created_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    quality_label, quality_score, quality_flags, parse_confidence, parse_flags, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -810,6 +814,8 @@ class FridayStore:
                         record.quality_label,
                         record.quality_score,
                         json.dumps(list(record.quality_flags), sort_keys=True),
+                        record.parse_confidence,
+                        json.dumps(list(record.parse_flags), sort_keys=True),
                         record.created_at,
                     )
                     for record in records
@@ -947,6 +953,8 @@ class FridayStore:
                     quality_label text not null default 'clean',
                     quality_score real not null default 1.0,
                     quality_flags text not null default '[]',
+                    parse_confidence real not null default 1.0,
+                    parse_flags text not null default '[]',
                     created_at text not null,
                     foreign key(artifact_id) references pdf_artifacts(artifact_id)
                 );
@@ -1033,6 +1041,8 @@ class FridayStore:
             "quality_label": "alter table evidence_records add column quality_label text not null default 'clean'",
             "quality_score": "alter table evidence_records add column quality_score real not null default 1.0",
             "quality_flags": "alter table evidence_records add column quality_flags text not null default '[]'",
+            "parse_confidence": "alter table evidence_records add column parse_confidence real not null default 1.0",
+            "parse_flags": "alter table evidence_records add column parse_flags text not null default '[]'",
         }
         for column, statement in migrations.items():
             if column not in existing:
@@ -1184,6 +1194,8 @@ def _evidence_record_from_row(row: sqlite3.Row) -> EvidenceRecord:
         quality_label=row["quality_label"],
         quality_score=float(row["quality_score"]),
         quality_flags=_json_tuple(row["quality_flags"]),
+        parse_confidence=float(row["parse_confidence"]),
+        parse_flags=_json_tuple(row["parse_flags"]),
         created_at=row["created_at"],
     )
 

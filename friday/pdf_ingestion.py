@@ -266,7 +266,13 @@ def deep_read_source(
         page_confidences=[page.confidence for page in parsed_pages],
         page_flags=[page.flags for page in parsed_pages],
     )
-    curation = apply_document_parse_quality_gate(curate_evidence_from_pages(pages))
+    curation = apply_document_parse_quality_gate(
+        curate_evidence_from_pages(
+            pages,
+            page_parse_confidences=[page.confidence for page in parsed_pages],
+            page_parse_flags=[page.flags for page in parsed_pages],
+        )
+    )
     store.add_evidence_records(artifact.artifact_id, [*curation.accepted, *curation.blocked])
     return PdfIngestionResult(
         status="stored",

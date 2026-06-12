@@ -332,6 +332,8 @@ class StorageTests(unittest.TestCase):
                         evidence_type="result",
                         text="The model achieved an AUROC of 0.91.",
                         page_number=3,
+                        parse_confidence=0.82,
+                        parse_flags=("wide_spacing",),
                     )
                 ],
             )
@@ -345,6 +347,8 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(loaded[0].quality_label, "clean")
             self.assertEqual(loaded[0].quality_score, 1.0)
             self.assertEqual(loaded[0].quality_flags, ())
+            self.assertEqual(loaded[0].parse_confidence, 0.82)
+            self.assertEqual(loaded[0].parse_flags, ("wide_spacing",))
 
     def test_persists_blocked_evidence_quality_metadata(self):
         from tempfile import TemporaryDirectory
