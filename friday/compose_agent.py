@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from friday.evidence_planner import build_evidence_plan, build_llm_evidence_plan
 from friday.llm.parse import extract_json
 from friday.llm.types import LLMRequest
 
@@ -62,8 +63,9 @@ def build_compose_package_files(package_dir: Path, *, section: str) -> dict[str,
 def build_llm_compose_package_files(package_dir: Path, *, section: str, router: Any) -> dict[str, str]:
     package = load_writing_package(package_dir)
     payload = build_compose_payload(package, section=section)
-    plan = build_discourse_plan(package, section=section, compose_payload=payload)
-    system_prompt, prompt = _composer_prompts(package, payload, plan)
+    evidence_plan = _compose_evidence_plan(package, section=section, payload=payload, router=router)
+    plan = build_discourse_plan(package, section=section, compose_payload=payload, evidence_plan=evidence_plan)
+    system_prompt, prompt = _composer_prompts(package, payload, plan, evidence_plan=evidence_plan)
     response = router.generate(
         "composer",
         LLMRequest(
@@ -85,7 +87,13 @@ def build_llm_compose_package_files(package_dir: Path, *, section: str, router: 
     )
     if audit["status"] == "pass":
         files["llm_draft.md"] = llm_draft + "\n"
-        verifier_system_prompt, verifier_prompt = _verifier_prompts(package, payload, plan, llm_draft)
+        verifier_system_prompt, verifier_prompt = _verifier_prompts(
+            package,
+            payload,
+            plan,
+            llm_draft,
+            evidence_plan=evidence_plan,
+        )
         verifier_response = router.generate(
             "verifier",
             LLMRequest(
@@ -118,6 +126,7 @@ def build_llm_compose_package_files(package_dir: Path, *, section: str, router: 
                 llm_draft,
                 verifier_audit,
                 router,
+                evidence_plan=evidence_plan,
                 initial_audit_filename="initial_verifier_audit.json",
             )
     else:
@@ -131,10 +140,12 @@ def build_llm_compose_package_files(package_dir: Path, *, section: str, router: 
                 llm_draft,
                 _repair_audit_from_composer_audit(audit),
                 router,
+                evidence_plan=evidence_plan,
                 initial_audit_filename="initial_composer_audit.json",
             )
         else:
             files["verifier_audit.json"] = _json_text(_skipped_verifier_audit("composer_not_trusted", audit))
+    files["evidence_plan.json"] = _json_text(evidence_plan)
     files["discourse_plan.json"] = _json_text(plan)
     files["composer_prompt.json"] = _json_text(
         {
@@ -149,6 +160,39 @@ def build_llm_compose_package_files(package_dir: Path, *, section: str, router: 
     return files
 
 
+def _compose_evidence_plan(
+    package: dict[str, Any],
+    *,
+    section: str,
+    payload: dict[str, Any],
+    router: Any,
+) -> dict[str, Any]:
+    if _router_can_plan(router):
+        try:
+            return build_llm_evidence_plan(package, section=section, compose_payload=payload, router=router)
+        except Exception as exc:
+            deterministic = build_evidence_plan(package, section=section, compose_payload=payload)
+            return {
+                **deterministic,
+                "planner_status": "fallback",
+                "planner_error": f"planner_exception:{type(exc).__name__}",
+            }
+    return build_evidence_plan(package, section=section, compose_payload=payload)
+
+
+def _router_can_plan(router: Any) -> bool:
+    responses = getattr(router, "responses", None)
+    if isinstance(responses, dict):
+        return bool(responses.get("planner"))
+    is_available = getattr(router, "is_available", None)
+    if callable(is_available):
+        try:
+            return bool(is_available("planner"))
+        except Exception:
+            return False
+    return False
+
+
 def _apply_revision_attempt(
     files: dict[str, str],
     package: dict[str, Any],
@@ -158,6 +202,7 @@ def _apply_revision_attempt(
     repair_audit: dict[str, Any],
     router: Any,
     *,
+    evidence_plan: dict[str, Any] | None = None,
     initial_audit_filename: str,
     attempt: int = 1,
     max_attempts: int = 3,
@@ -169,6 +214,7 @@ def _apply_revision_attempt(
         plan,
         rejected_draft,
         repair_audit,
+        evidence_plan=evidence_plan,
     )
     revision_response = router.generate(
         "composer",
@@ -217,6 +263,7 @@ def _apply_revision_attempt(
         payload,
         plan,
         revised_draft,
+        evidence_plan=evidence_plan,
     )
     revision_verifier_response = router.generate(
         "verifier",
@@ -257,6 +304,7 @@ def _apply_revision_attempt(
             revised_draft,
             revision_verifier_audit,
             router,
+            evidence_plan=evidence_plan,
             initial_audit_filename=f"initial_revision_{attempt + 1}_verifier_audit.json",
             attempt=attempt + 1,
             max_attempts=max_attempts,
@@ -341,13 +389,20 @@ def build_discourse_plan(
     *,
     section: str,
     compose_payload: dict[str, Any] | None = None,
+    evidence_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = compose_payload or build_compose_payload(package, section=section)
     used_evidence = payload["used_evidence"]["used_evidence"]
-    required_citations = _ordered_unique(
-        citation
-        for entry in used_evidence
-        for citation in entry["citations"]
+    plan_filters = _evidence_plan_filters(evidence_plan)
+    included_citation_set = set(evidence_plan.get("included_citations", [])) if plan_filters else set()
+    required_citations = (
+        list(evidence_plan.get("included_citations", []))
+        if plan_filters
+        else _ordered_unique(
+            citation
+            for entry in used_evidence
+            for citation in entry["citations"]
+        )
     )
     moves = [
         {
@@ -358,6 +413,13 @@ def build_discourse_plan(
         }
     ]
     for index, group in enumerate(payload["outline"]["groups"], start=2):
+        group_citations = [
+            citation
+            for citation in group["citations"]
+            if not included_citation_set or citation in included_citation_set
+        ]
+        if plan_filters and not group_citations:
+            continue
         moves.append(
             {
                 "move_id": f"D{index}",
@@ -370,7 +432,7 @@ def build_discourse_plan(
                     "Every factual sentence must carry one or more exact citation tokens."
                 ),
                 "source_paragraph_ids": group["source_paragraph_ids"],
-                "required_citations": group["citations"],
+                "required_citations": group_citations,
             }
         )
     next_id = len(moves) + 1
@@ -408,6 +470,7 @@ def build_discourse_plan(
             "rule": "The composer receives only supported paragraphs, evidence table rows, paper references, and material gaps.",
         },
         "required_citations": required_citations,
+        "evidence_plan_status": evidence_plan.get("planner_status") if evidence_plan else None,
         "moves": moves,
     }
 
@@ -416,6 +479,8 @@ def _composer_prompts(
     package: dict[str, Any],
     payload: dict[str, Any],
     plan: dict[str, Any],
+    *,
+    evidence_plan: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     system_prompt = (
         "You are Friday's evidence-bound scholarly composer. "
@@ -430,8 +495,9 @@ def _composer_prompts(
         "section": payload["section"],
         "source_report": package["source_report.json"],
         "discourse_plan": plan,
+        "evidence_plan": _prompt_evidence_plan(evidence_plan),
         "source_context_line": _source_line(package["source_report.json"]),
-        "atomic_evidence_rows": _atomic_evidence_rows(payload),
+        "atomic_evidence_rows": _atomic_evidence_rows(payload, evidence_plan=evidence_plan),
         "paper_references": package["paper_references.json"],
         "material_gaps": package["material_gaps.json"],
         "conflicts": payload["conflicts"],
@@ -474,14 +540,34 @@ def _prompt_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return prompt_rows
 
 
-def _atomic_evidence_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def _atomic_evidence_rows(
+    payload: dict[str, Any],
+    *,
+    evidence_plan: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    included_citations = (
+        set(evidence_plan.get("included_citations", []))
+        if _evidence_plan_filters(evidence_plan)
+        else set()
+    )
+    included_row_ids = (
+        set(evidence_plan.get("included_row_ids", []))
+        if _evidence_plan_filters(evidence_plan)
+        else set()
+    )
     rows = []
     for entry in payload["used_evidence"]["used_evidence"]:
         table_rows = entry.get("table_rows", [])
         if table_rows:
-            rows.extend(_compact_table_row(row) for row in table_rows)
+            rows.extend(
+                _compact_table_row(row)
+                for row in table_rows
+                if _planned_table_row_allowed(row, included_row_ids, included_citations)
+            )
             continue
         for citation in entry.get("citations", []):
+            if included_citations and citation not in included_citations:
+                continue
             rows.append(
                 {
                     "row_id": entry.get("source_paragraph_id"),
@@ -497,6 +583,49 @@ def _atomic_evidence_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
     return rows
+
+
+def _planned_table_row_allowed(
+    row: dict[str, Any],
+    included_row_ids: set[str],
+    included_citations: set[str],
+) -> bool:
+    if not included_row_ids and not included_citations:
+        return True
+    row_id = str(row.get("row_id") or "")
+    if row_id and included_row_ids:
+        return row_id in included_row_ids
+    return str(row.get("citation") or "") in included_citations
+
+
+def _prompt_evidence_plan(evidence_plan: dict[str, Any] | None) -> dict[str, Any]:
+    if not evidence_plan:
+        return {}
+    return {
+        "artifact_type": evidence_plan.get("artifact_type"),
+        "planner_status": evidence_plan.get("planner_status"),
+        "provider": evidence_plan.get("provider"),
+        "included_citations": evidence_plan.get("included_citations", []),
+        "appendix_citations": evidence_plan.get("appendix_citations", []),
+        "excluded_citations": evidence_plan.get("excluded_citations", []),
+        "included_row_ids": evidence_plan.get("included_row_ids", []),
+        "appendix_row_ids": evidence_plan.get("appendix_row_ids", []),
+        "excluded_row_ids": evidence_plan.get("excluded_row_ids", []),
+        "rows": [
+            {
+                "row_id": row.get("row_id"),
+                "citation": row.get("citation"),
+                "role": row.get("role"),
+                "action": row.get("action"),
+                "reason": row.get("reason"),
+            }
+            for row in evidence_plan.get("rows", [])
+        ],
+    }
+
+
+def _evidence_plan_filters(evidence_plan: dict[str, Any] | None) -> bool:
+    return bool(evidence_plan and evidence_plan.get("rows"))
 
 
 def _composer_audit(
@@ -562,6 +691,8 @@ def _verifier_prompts(
     payload: dict[str, Any],
     plan: dict[str, Any],
     draft_markdown: str,
+    *,
+    evidence_plan: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     system_prompt = (
         "You are Friday's independent evidence verifier. "
@@ -573,7 +704,8 @@ def _verifier_prompts(
         "task": "Verify whether the draft is fully supported by the evidence package.",
         "draft_markdown": draft_markdown,
         "discourse_plan": plan,
-        "atomic_evidence_rows": _atomic_evidence_rows(payload),
+        "evidence_plan": _prompt_evidence_plan(evidence_plan),
+        "atomic_evidence_rows": _atomic_evidence_rows(payload, evidence_plan=evidence_plan),
         "paper_references": package["paper_references.json"],
         "material_gaps": package["material_gaps.json"],
         "conflicts": payload["conflicts"],
@@ -729,6 +861,8 @@ def _revision_prompts(
     plan: dict[str, Any],
     rejected_draft: str,
     verifier_audit: dict[str, Any],
+    *,
+    evidence_plan: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     system_prompt = (
         "You are Friday's evidence-bound scholarly revision composer. "
@@ -748,6 +882,7 @@ def _revision_prompts(
         "section": payload["section"],
         "rejected_draft_markdown": rejected_draft,
         "source_report": package["source_report.json"],
+        "evidence_plan": _prompt_evidence_plan(evidence_plan),
         "repair_context": repair_context,
         "output_rules": [
             "Return markdown only.",
@@ -949,6 +1084,9 @@ def _compact_table_row(row: dict[str, Any]) -> dict[str, Any]:
         "quality_score": row.get("quality_score"),
         "parse_confidence": row.get("parse_confidence"),
         "parse_flags": row.get("parse_flags"),
+        "trust_label": row.get("trust_label"),
+        "trust_score": row.get("trust_score"),
+        "trust_reasons": row.get("trust_reasons"),
     }
 
 

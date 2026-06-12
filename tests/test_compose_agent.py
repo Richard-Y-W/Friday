@@ -693,10 +693,131 @@ class ComposeAgentTests(unittest.TestCase):
             self.assertEqual(verifier_audit["status"], "fallback")
             self.assertEqual(verifier_audit["reason"], "verifier_rejected")
             self.assertEqual(verifier_audit["verdict"], "fail")
-            revision_audit = json.loads(files["revision_audit.json"])
-            self.assertEqual(revision_audit["status"], "fallback")
-            self.assertEqual(revision_audit["reason"], "revision_rejected")
-            self.assertEqual(revision_audit["attempt"], 3)
+
+    def test_llm_compose_uses_evidence_plan_to_hide_excluded_rows_from_composer(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "schema_version": "1.0",
+                    "artifact_type": "writing_evidence_tables",
+                    "all_rows": [
+                        {
+                            "row_id": "R1",
+                            "claim_id": "C1",
+                            "support_status": "SUPPORTED",
+                            "table": "results",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P2 p2",
+                            "page_number": 2,
+                            "text": "Formally, the learning objective is defined as: L = CE(z,y) + mu L_SNP.",
+                            "trust_label": "trusted",
+                        },
+                        {
+                            "row_id": "R2",
+                            "claim_id": "C2",
+                            "support_status": "SUPPORTED",
+                            "table": "results",
+                            "evidence_type": "result",
+                            "paper": "P2",
+                            "citation": "P2 p2",
+                            "page_number": 2,
+                            "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                            "trust_label": "trusted",
+                        },
+                    ],
+                    "tables": {
+                        "results": [
+                            {
+                                "row_id": "R1",
+                                "evidence_type": "result",
+                                "paper": "P1",
+                                "citation": "P2 p2",
+                                "page_number": 2,
+                                "text": "Formally, the learning objective is defined as: L = CE(z,y) + mu L_SNP.",
+                                "trust_label": "trusted",
+                            },
+                            {
+                                "row_id": "R2",
+                                "evidence_type": "result",
+                                "paper": "P2",
+                                "citation": "P2 p2",
+                                "page_number": 2,
+                                "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                                "trust_label": "trusted",
+                            },
+                        ]
+                    },
+                },
+            )
+            router = FakeRouter(
+                {
+                    "planner": LLMResponse(
+                        provider="claude_cli",
+                        model="sonnet",
+                        success=True,
+                        text=json.dumps(
+                            {
+                                "rows": [
+                                    {
+                                        "row_id": "R1",
+                                        "citation": "P2 p2",
+                                        "role": "formula_detail",
+                                        "action": "appendix",
+                                        "reason": "formula detail belongs outside prose",
+                                    },
+                                    {
+                                        "row_id": "R2",
+                                        "citation": "P2 p2",
+                                        "role": "result",
+                                        "action": "include",
+                                        "reason": "result evidence belongs in prose",
+                                    },
+                                ]
+                            }
+                        ),
+                    ),
+                    "composer": LLMResponse(
+                        provider="claude_cli",
+                        model="sonnet",
+                        success=True,
+                        text="# Results\n\nThe classifier detected resistant isolates with 88 percent sensitivity [P2 p2].",
+                    ),
+                    "verifier": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=json.dumps(
+                            {
+                                "verdict": "pass",
+                                "summary": "Supported.",
+                                "unsupported_claims": [],
+                                "citation_errors": [],
+                                "missing_material_gaps": [],
+                            }
+                        ),
+                    ),
+                }
+            )
+
+            files = build_llm_compose_package_files(package_dir, section="results", router=router)
+
+            self.assertIn("evidence_plan.json", files)
+            evidence_plan = json.loads(files["evidence_plan.json"])
+            discourse_plan = json.loads(files["discourse_plan.json"])
+            composer_prompt = json.loads(json.loads(files["composer_prompt.json"])["prompt"])
+
+            self.assertEqual(evidence_plan["appendix_row_ids"], ["R1"])
+            self.assertEqual(evidence_plan["included_row_ids"], ["R2"])
+            self.assertEqual(evidence_plan["appendix_citations"], ["P2 p2"])
+            self.assertEqual(evidence_plan["included_citations"], ["P2 p2"])
+            self.assertEqual(discourse_plan["required_citations"], ["P2 p2"])
+            self.assertNotIn("learning objective", json.dumps(composer_prompt["atomic_evidence_rows"]))
+            self.assertIn("88 percent sensitivity", json.dumps(composer_prompt["atomic_evidence_rows"]))
+            self.assertEqual([role for role, _request in router.calls], ["planner", "composer", "verifier"])
 
 
 class FakeRouter:

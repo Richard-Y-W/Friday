@@ -11,8 +11,9 @@ from friday.llm.config import (
 
 class LlmConfigTests(unittest.TestCase):
     def test_default_wiring_uses_subscription_clis_for_generative_roles(self):
-        # The two roles where a generative LLM belongs default to subscription
+        # The roles where a generative LLM belongs default to subscription
         # CLIs, never the token-billed api providers.
+        self.assertEqual(DEFAULT_ROLE_WIRING["planner"][0], "claude_cli")
         self.assertEqual(DEFAULT_ROLE_WIRING["composer"][0], "claude_cli")
         self.assertEqual(DEFAULT_ROLE_WIRING["verifier"][0], "codex_cli")
         self.assertEqual(DEFAULT_ROLE_WIRING["critic"][0], "codex_cli")
@@ -47,7 +48,7 @@ class LlmConfigTests(unittest.TestCase):
     def test_build_router_configures_generative_roles(self):
         router = build_router({"llm": default_llm_settings()})
         configured = set(router.configured_roles())
-        self.assertEqual(configured, {"composer", "verifier", "critic"})
+        self.assertEqual(configured, {"planner", "composer", "verifier", "critic"})
 
 
 if __name__ == "__main__":

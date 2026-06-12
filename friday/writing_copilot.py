@@ -6,6 +6,8 @@ import json
 import re
 from typing import Any, Union
 
+from friday.evidence_planner import build_evidence_plan
+
 
 PackageFileContent = Union[str, bytes]
 
@@ -152,6 +154,13 @@ def build_writing_package_files(payload: dict[str, Any]) -> dict[str, PackageFil
     writing_payload["audit_summary"] = build_writing_audit_summary(writing_payload)
     audit_summary = writing_payload["audit_summary"]
     evidence_tables = writing_payload["evidence_tables"]
+    planner_package = {
+        "source_report.json": writing_payload.get("source_report", {}),
+        "paper_references.json": writing_payload.get("paper_references", []),
+        "material_gaps.json": writing_payload.get("material_gaps", []),
+        "evidence_tables.json": evidence_tables,
+    }
+    evidence_plan = build_evidence_plan(planner_package, section="all")
     report_markdown = render_evidence_report_markdown(writing_payload)
     files = {
         "writing.json": _json_text(writing_payload),
@@ -165,6 +174,7 @@ def build_writing_package_files(payload: dict[str, Any]) -> dict[str, PackageFil
         "source_report.json": _json_text(writing_payload.get("source_report", {})),
         "screening_labels.json": _json_text(writing_payload.get("screening_labels", _empty_screening_label_summary())),
         "citation_audit.json": _json_text(audit_summary),
+        "evidence_plan.json": _json_text(evidence_plan),
         "literature_table.csv": _literature_csv_text(writing_payload.get("paper_references", [])),
         "evidence_tables.json": _json_text(evidence_tables),
         "evidence_table.csv": _csv_text(evidence_tables["all_rows"]),

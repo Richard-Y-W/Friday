@@ -3167,6 +3167,7 @@ class CliTests(unittest.TestCase):
                     "citation_audit.json",
                     "claims.csv",
                     "draft.md",
+                    "evidence_plan.json",
                     "evidence_table.csv",
                     "evidence_tables.json",
                     "limitations.csv",

@@ -6,7 +6,7 @@ from friday.llm.router import ModelRouter
 from friday.llm.types import ModelConfig, Provider, ProviderName, Role
 
 # Pipeline roles, in the order they appear in the build plan (§11 / Phase 0).
-ROLES: tuple[Role, ...] = ("screener", "extractor", "composer", "verifier", "critic")
+ROLES: tuple[Role, ...] = ("screener", "extractor", "planner", "composer", "verifier", "critic")
 
 # Default wiring. The two roles where a generative LLM actually belongs (PLAN §1)
 # go to the *subscription* CLIs — composer on Claude, verifier/critic on Codex —
@@ -16,6 +16,7 @@ ROLES: tuple[Role, ...] = ("screener", "extractor", "composer", "verifier", "cri
 DEFAULT_ROLE_WIRING: dict[Role, tuple[ProviderName, str]] = {
     "screener": ("none", ""),
     "extractor": ("none", ""),
+    "planner": ("claude_cli", "sonnet"),
     "composer": ("claude_cli", "sonnet"),
     "verifier": ("codex_cli", ""),
     "critic": ("codex_cli", ""),

@@ -304,6 +304,7 @@ class WritingCopilotTests(unittest.TestCase):
                     "citation_audit.json",
                     "claims.csv",
                     "draft.md",
+                    "evidence_plan.json",
                     "evidence_table.csv",
                     "evidence_tables.json",
                     "limitations.csv",
@@ -330,6 +331,7 @@ class WritingCopilotTests(unittest.TestCase):
             self.assertIn("## Limitations And Gaps", package["report.md"])
             self.assertIn("## Literature Table", package["report.md"])
             self.assertTrue(package["report.pdf"].startswith(b"%PDF-1.4"))
+            self.assertEqual(json.loads(package["evidence_plan.json"])["artifact_type"], "evidence_plan")
             self.assertEqual(json.loads(package["writing.json"])["artifact_type"], "writing_copilot_output")
             self.assertEqual(json.loads(package["paper_references.json"])[0]["label"], "P1")
             self.assertEqual(json.loads(package["supported_paragraphs.json"])[0]["citations"], ["P1 p1", "P2 p1"])
