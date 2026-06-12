@@ -437,6 +437,40 @@ class EvidenceExtractionTests(unittest.TestCase):
         self.assertEqual(result.accepted, [])
         self.assertGreaterEqual(result.blocked_by_flag["column_stitching"], 4)
 
+    def test_blocks_symbol_loss_and_replacement_character_corruption(self):
+        dropped_beta = assess_evidence_quality(
+            "The hydrolysis of the -lactam ring was measured after exposure of -lactam antibiotics to lactamase producing isolates."
+        )
+        replacement_character = assess_evidence_quality(
+            "The β-lactam MIC values were reported as �g/mL for resistant isolates."
+        )
+        clean_beta = assess_evidence_quality(
+            "The hydrolysis of the beta-lactam ring was measured after exposure of beta-lactam antibiotics to lactamase-producing isolates."
+        )
+
+        self.assertEqual(dropped_beta.label, "blocked")
+        self.assertIn("symbol_loss", dropped_beta.flags)
+        self.assertEqual(replacement_character.label, "blocked")
+        self.assertIn("symbol_loss", replacement_character.flags)
+        self.assertEqual(clean_beta.label, "clean")
+
+    def test_blocks_recent_frontiers_column_interleaved_method_span(self):
+        pages = [
+            (
+                "Methods\n"
+                "The hydrolysis of the -lactam ring using the ClinProtTools analysis software (v3.0; Bruker "
+                "after exposure of -lactam antibiotics to -lactamase producing Daltonics) to investigate possible "
+                "differences between resistant isolates. "
+                "We used MALDI-TOF spectra to train a classifier."
+            )
+        ]
+
+        result = curate_evidence_from_pages(pages)
+
+        self.assertEqual([item.text for item in result.accepted], ["We used MALDI-TOF spectra to train a classifier"])
+        self.assertTrue(any("column_stitching" in item.quality_flags for item in result.blocked))
+        self.assertTrue(any("symbol_loss" in item.quality_flags for item in result.blocked))
+
     def test_document_parse_quality_blocks_weak_clean_evidence_from_noisy_pdf(self):
         noisy_page = "Methods\n" + " ".join(
             "Articles seTo design suitable local and global interventions, it is lected for full text review were obtained using PubMed."

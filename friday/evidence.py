@@ -101,6 +101,9 @@ LAYOUT_NOISE_PATTERNS = (
     re.compile(r"\bcurrent microbial isolates from wound swabs\b", re.IGNORECASE),
     re.compile(r"\bone study compared mic results using broth in susceptibility\b", re.IGNORECASE),
     re.compile(r"\boverall median phenotypic results\b", re.IGNORECASE),
+    re.compile(r"\bbruker\s+after exposure\b.*\bdaltonics\b", re.IGNORECASE),
+    re.compile(r"\bclinprottools\b.*\bbruker\s+after exposure\b", re.IGNORECASE),
+    re.compile(r"\bafter exposure of\s+[-–−]\s*lactam antibiotics to\s+[-–−]\s*lactamase producing\s+daltonics\b", re.IGNORECASE),
 )
 
 EMBEDDED_SECTION_HEADINGS = (
@@ -679,6 +682,7 @@ def _layout_noise_flags(text: str) -> tuple[str, ...]:
         flags.append("hyphenation_break")
     if any(pattern.search(text) for pattern in LAYOUT_NOISE_PATTERNS):
         flags.append("column_stitching")
+    flags.extend(_symbol_loss_flags(text))
     if _has_embedded_all_caps_heading(text):
         flags.append("embedded_heading")
     if _has_embedded_section_headings(text):
@@ -807,6 +811,15 @@ def _has_ocr_spaced_words(text: str) -> bool:
     if spaced_words and sum(1 for char in text if char in "~=()[]{}") >= 8:
         return True
     return False
+
+
+def _symbol_loss_flags(text: str) -> list[str]:
+    flags: list[str] = []
+    if "\ufffd" in text:
+        flags.append("symbol_loss")
+    if re.search(r"(?<![A-Za-zβ])[-–−]\s*lactam(?:ase)?\b", text, flags=re.IGNORECASE):
+        flags.append("symbol_loss")
+    return flags
 
 
 def _classify(text: str) -> str | None:
