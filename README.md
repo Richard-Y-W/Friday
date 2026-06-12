@@ -121,6 +121,21 @@ auto_label.provider: heuristic
 
 If you switch to an LLM provider, Friday will use the API key configured in `auto_label.api_key_env`, which defaults to `OPENAI_API_KEY`.
 
+For writing/composition, Friday uses local subscription CLIs by default, not API tokens. The active default profile is Codex:
+
+```bash
+friday llm status
+friday llm use codex
+```
+
+When Claude CLI is logged in, switch the writing planner/composer to Claude while keeping Codex as the verifier:
+
+```bash
+friday llm use claude
+```
+
+The profile command updates provider and model fields together, so provider-specific model names such as `sonnet` are not accidentally passed to Codex.
+
 ## Safety Model
 
 Friday enforces a scholarly source policy:

@@ -40,7 +40,7 @@ from friday.label_export import (
 )
 from friday.label_eval import build_label_evaluation
 from friday.label_review import LABEL_REVIEW_FILTERS, build_label_review_rows
-from friday.llm.config import ROLES as LLM_ROLES, build_router
+from friday.llm.config import LLM_PROFILE_CHOICES, ROLES as LLM_ROLES, build_router, llm_profile_settings
 from friday.llm.types import LLMRequest
 from friday.pdf_ingestion import PdfIngestionResult, deep_read_source
 from friday.query_planning import normalize_research_query
@@ -70,7 +70,7 @@ from friday.screening import (
     rank_deep_read_items,
     recommend_unlabeled_items,
 )
-from friday.settings import flatten_settings, load_settings, set_setting
+from friday.settings import flatten_settings, load_settings, save_settings, set_setting
 from friday.source_policy import evaluate_source
 from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES
 from friday.topic_planning import plan_topic_for_records, update_topic_memory
@@ -492,7 +492,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "llm",
         help="Inspect or test the LLM role wiring (subscription CLIs, not API tokens).",
     )
-    llm.add_argument("action", choices=("status", "test"), help="Show role wiring/availability or run one live generation.")
+    llm.add_argument(
+        "action",
+        choices=("status", "test", "use"),
+        help="Show role wiring/availability, switch provider profile, or run one live generation.",
+    )
+    llm.add_argument("profile", nargs="?", choices=LLM_PROFILE_CHOICES, help="Profile for 'use': codex or claude.")
     llm.add_argument("--role", choices=list(LLM_ROLES), help="Role to test (required for 'test').")
     llm.add_argument("--prompt", help="Prompt for 'test'. Defaults to a tiny liveness check.")
     llm.add_argument("--format", choices=("text", "json"), default="text", help="Output format.")
@@ -1853,6 +1858,21 @@ def _handle_settings(args: argparse.Namespace, data_dir: Path) -> int:
 def _handle_llm(args: argparse.Namespace, data_dir: Path) -> int:
     settings = load_settings(data_dir)
     router = build_router(settings)
+
+    if args.action == "use":
+        if not args.profile:
+            print("llm use requires a profile (one of: " + ", ".join(LLM_PROFILE_CHOICES) + ")")
+            return 2
+        settings["llm"] = llm_profile_settings(args.profile)
+        save_settings(data_dir, settings)
+        if args.format == "json":
+            print(json.dumps({"active_profile": args.profile, "llm": settings["llm"]}, indent=2))
+            return 0
+        print(f"Active LLM profile: {args.profile}")
+        print("")
+        for key, value in flatten_settings({"llm": settings["llm"]}):
+            print(f"{key}: {_setting_text(value)}")
+        return 0
 
     if args.action == "status":
         status = router.status()

@@ -1,5 +1,6 @@
 import unittest
 
+import friday.llm.config as llm_config
 from friday.llm.config import (
     DEFAULT_ROLE_WIRING,
     ROLES,
@@ -13,13 +14,34 @@ class LlmConfigTests(unittest.TestCase):
     def test_default_wiring_uses_subscription_clis_for_generative_roles(self):
         # The roles where a generative LLM belongs default to subscription
         # CLIs, never the token-billed api providers.
-        self.assertEqual(DEFAULT_ROLE_WIRING["planner"][0], "claude_cli")
-        self.assertEqual(DEFAULT_ROLE_WIRING["composer"][0], "claude_cli")
+        self.assertEqual(DEFAULT_ROLE_WIRING["planner"], ("codex_cli", ""))
+        self.assertEqual(DEFAULT_ROLE_WIRING["composer"], ("codex_cli", ""))
         self.assertEqual(DEFAULT_ROLE_WIRING["verifier"][0], "codex_cli")
         self.assertEqual(DEFAULT_ROLE_WIRING["critic"][0], "codex_cli")
         # High-volume screening/extraction stay deterministic.
         self.assertEqual(DEFAULT_ROLE_WIRING["screener"][0], "none")
         self.assertEqual(DEFAULT_ROLE_WIRING["extractor"][0], "none")
+
+    def test_llm_profiles_switch_between_codex_and_claude_writing(self):
+        self.assertEqual(getattr(llm_config, "LLM_PROFILE_CHOICES", None), ("codex", "claude"))
+
+        profile_settings = getattr(llm_config, "llm_profile_settings", lambda _profile: {})
+
+        codex = profile_settings("codex")
+        self.assertEqual(codex["planner_provider"], "codex_cli")
+        self.assertEqual(codex["planner_model"], "")
+        self.assertEqual(codex["composer_provider"], "codex_cli")
+        self.assertEqual(codex["composer_model"], "")
+        self.assertEqual(codex["verifier_provider"], "codex_cli")
+        self.assertEqual(codex["critic_provider"], "codex_cli")
+
+        claude = profile_settings("claude")
+        self.assertEqual(claude["planner_provider"], "claude_cli")
+        self.assertEqual(claude["planner_model"], "sonnet")
+        self.assertEqual(claude["composer_provider"], "claude_cli")
+        self.assertEqual(claude["composer_model"], "sonnet")
+        self.assertEqual(claude["verifier_provider"], "codex_cli")
+        self.assertEqual(claude["verifier_model"], "")
 
     def test_no_default_role_uses_token_billed_providers(self):
         for role in ROLES:

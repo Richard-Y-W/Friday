@@ -8,26 +8,56 @@ from friday.llm.types import ModelConfig, Provider, ProviderName, Role
 # Pipeline roles, in the order they appear in the build plan (§11 / Phase 0).
 ROLES: tuple[Role, ...] = ("screener", "extractor", "planner", "composer", "verifier", "critic")
 
-# Default wiring. The two roles where a generative LLM actually belongs (PLAN §1)
-# go to the *subscription* CLIs — composer on Claude, verifier/critic on Codex —
-# which gives the "independent model family" the gate requires (§6) and bills the
-# user's rolling usage window, never per-token API credits. High-volume screening
-# and extraction stay deterministic (``none``) so the thousands never hit a model.
+# Named profiles keep provider/model pairs compatible when switching between
+# local subscription CLIs. High-volume screening and extraction stay
+# deterministic (``none``) so the thousands never hit a model.
+LLM_PROFILE_CHOICES = ("codex", "claude")
+
+LLM_PROFILES: dict[str, dict[Role, tuple[ProviderName, str]]] = {
+    "codex": {
+        "screener": ("none", ""),
+        "extractor": ("none", ""),
+        "planner": ("codex_cli", ""),
+        "composer": ("codex_cli", ""),
+        "verifier": ("codex_cli", ""),
+        "critic": ("codex_cli", ""),
+    },
+    "claude": {
+        "screener": ("none", ""),
+        "extractor": ("none", ""),
+        "planner": ("claude_cli", "sonnet"),
+        "composer": ("claude_cli", "sonnet"),
+        "verifier": ("codex_cli", ""),
+        "critic": ("codex_cli", ""),
+    },
+}
+
+# Default wiring. Use Codex for now because it is the provider currently logged
+# in locally; ``friday llm use claude`` restores the Claude-writer/Codex-verifier
+# split once Claude CLI auth is available. These are subscription CLIs, never
+# token-billed API providers.
 DEFAULT_ROLE_WIRING: dict[Role, tuple[ProviderName, str]] = {
-    "screener": ("none", ""),
-    "extractor": ("none", ""),
-    "planner": ("claude_cli", "sonnet"),
-    "composer": ("claude_cli", "sonnet"),
-    "verifier": ("codex_cli", ""),
-    "critic": ("codex_cli", ""),
+    role: wiring for role, wiring in LLM_PROFILES["codex"].items()
 }
 
 
 def default_llm_settings() -> dict[str, object]:
     """The ``llm`` settings section: ``<role>_provider`` / ``<role>_model`` keys."""
-    section: dict[str, object] = {}
+    section: dict[str, object] = {"profile": "codex"}
     for role in ROLES:
         provider, model = DEFAULT_ROLE_WIRING[role]
+        section[f"{role}_provider"] = provider
+        section[f"{role}_model"] = model
+    return section
+
+
+def llm_profile_settings(profile: str) -> dict[str, object]:
+    """Return a complete ``llm`` settings section for a named local-CLI profile."""
+    if profile not in LLM_PROFILES:
+        raise KeyError(f"unknown llm profile: {profile}")
+    section: dict[str, object] = {"profile": profile}
+    for role in ROLES:
+        provider, model = LLM_PROFILES[profile][role]
         section[f"{role}_provider"] = provider
         section[f"{role}_model"] = model
     return section

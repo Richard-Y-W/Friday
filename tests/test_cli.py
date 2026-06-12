@@ -67,7 +67,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Friday LLM role wiring", output)
         self.assertIn("composer", output)
-        self.assertIn("claude_cli", output)
+        self.assertIn("codex_cli", output)
         self.assertIn("verifier", output)
         self.assertIn("codex_cli", output)
 
@@ -3400,7 +3400,7 @@ class LlmCommandTests(unittest.TestCase):
 
     def _disable_all_roles(self, tmp_path):
         # Set every role to 'none' so `llm status` never spawns a CLI subprocess.
-        for role in ("screener", "extractor", "composer", "verifier", "critic"):
+        for role in ("screener", "extractor", "planner", "composer", "verifier", "critic"):
             self.run_cli(["settings", "set", f"llm.{role}_provider", "none"], tmp_path)
 
     def test_llm_status_lists_roles_without_spawning(self):
@@ -3425,6 +3425,49 @@ class LlmCommandTests(unittest.TestCase):
             code, output = self.run_cli(["llm", "test", "--role", "composer"], tmp_path)
             self.assertEqual(code, 2)
             self.assertIn("not wired", output)
+
+    def test_llm_use_codex_sets_provider_compatible_models(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self.run_cli(["settings", "set", "llm.planner_provider", "claude_cli"], tmp_path)
+            self.run_cli(["settings", "set", "llm.planner_model", "sonnet"], tmp_path)
+            self.run_cli(["settings", "set", "llm.composer_provider", "claude_cli"], tmp_path)
+            self.run_cli(["settings", "set", "llm.composer_model", "sonnet"], tmp_path)
+
+            code, output = self.run_cli(["llm", "use", "codex"], tmp_path)
+            settings_code, settings_output = self.run_cli(["settings"], tmp_path)
+
+            self.assertEqual(code, 0)
+            self.assertIn("Active LLM profile: codex", output)
+            self.assertEqual(settings_code, 0)
+            self.assertIn("llm.planner_provider: codex_cli", settings_output)
+            self.assertIn("llm.planner_model: ", settings_output)
+            self.assertIn("llm.composer_provider: codex_cli", settings_output)
+            self.assertIn("llm.composer_model: ", settings_output)
+            self.assertIn("llm.verifier_provider: codex_cli", settings_output)
+
+    def test_llm_use_claude_sets_hybrid_writer_and_verifier_profile(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            code, output = self.run_cli(["llm", "use", "claude"], tmp_path)
+            settings_code, settings_output = self.run_cli(["settings"], tmp_path)
+
+            self.assertEqual(code, 0)
+            self.assertIn("Active LLM profile: claude", output)
+            self.assertEqual(settings_code, 0)
+            self.assertIn("llm.planner_provider: claude_cli", settings_output)
+            self.assertIn("llm.planner_model: sonnet", settings_output)
+            self.assertIn("llm.composer_provider: claude_cli", settings_output)
+            self.assertIn("llm.composer_model: sonnet", settings_output)
+            self.assertIn("llm.verifier_provider: codex_cli", settings_output)
+            self.assertIn("llm.verifier_model: ", settings_output)
 
 
 if __name__ == "__main__":
