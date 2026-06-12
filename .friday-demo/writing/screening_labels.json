@@ -1,0 +1,16 @@
+{
+  "artifact_type": "screening_label_summary",
+  "counts": {
+    "irrelevant": 0,
+    "maybe": 0,
+    "relevant": 0
+  },
+  "labeled_count": 0,
+  "labels": [],
+  "rules": {
+    "irrelevant": "Excluded from resumed deep reads.",
+    "maybe": "Kept eligible after relevant labels and before unlabeled papers with the same score.",
+    "relevant": "Prioritized for resumed deep reads and allowed to bypass the minimum relevance threshold."
+  },
+  "schema_version": "1.0"
+}

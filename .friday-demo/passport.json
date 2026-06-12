@@ -1,0 +1,111 @@
+{
+  "artifact_type": "batch_passport",
+  "artifacts": {
+    "failed_pdf_count": 12,
+    "pdf_attempt_count": 15,
+    "stored_pdf_count": 3
+  },
+  "batch": {
+    "allowed_count": 25,
+    "batch_id": "batch_20260611_235330_465964",
+    "blocked_count": 0,
+    "created_at": "2026-06-11T23:53:30+00:00",
+    "deep_read_count": 3,
+    "limit": 25,
+    "manifest_path": null,
+    "mode": "query",
+    "query": "MALDI-TOF mass spectrometry antimicrobial resistance detection",
+    "screened_count": 25
+  },
+  "generated_at": "2026-06-11T23:53:46+00:00",
+  "llm_review_queue": {
+    "artifact_type": "llm_review_queue",
+    "items": [],
+    "queued_count": 0,
+    "schema_version": "1.0",
+    "selection_policy": {
+      "excludes": [
+        "blocked_sources",
+        "human_labeled_items"
+      ],
+      "prioritizes": [
+        "high_relevance_maybe_labels",
+        "high_relevance_irrelevant_conflicts",
+        "low_confidence_agent_labels",
+        "high_relevance_unlabeled_items",
+        "source_diversity"
+      ]
+    }
+  },
+  "query_plan": {
+    "acronym_expansions": null,
+    "expanded_queries": [
+      "MALDI-TOF mass spectrometry antimicrobial resistance detection"
+    ],
+    "intent": "unknown"
+  },
+  "repro_lock": {
+    "external_protocols": {
+      "arxiv": "live_api",
+      "openalex": "live_api",
+      "pmc": "live_http",
+      "pubmed": "live_api",
+      "snapshots_available": false
+    },
+    "friday_commit": "20153a0",
+    "friday_version": "0.1.0",
+    "local_state": {
+      "data_dir": ".friday-demo"
+    },
+    "model": {
+      "id": null,
+      "used_for_scanner": false,
+      "weight_stable": false
+    },
+    "schema_version": "1.0",
+    "stochasticity_declaration": "Live scholarly APIs and LLM outputs are not byte-reproducible. This lock documents configuration, not deterministic replay."
+  },
+  "schema_version": "1.0",
+  "screening_labels": {
+    "artifact_type": "screening_label_summary",
+    "counts": {
+      "irrelevant": 0,
+      "maybe": 0,
+      "relevant": 0
+    },
+    "labeled_count": 0,
+    "labels": [],
+    "rules": {
+      "irrelevant": "Excluded from resumed deep reads.",
+      "maybe": "Kept eligible after relevant labels and before unlabeled papers with the same score.",
+      "relevant": "Prioritized for resumed deep reads and allowed to bypass the minimum relevance threshold."
+    },
+    "schema_version": "1.0"
+  },
+  "search": {
+    "providers_observed": [
+      "arxiv",
+      "openalex",
+      "pubmed"
+    ],
+    "query_variants_observed": [
+      "MALDI-TOF mass spectrometry antimicrobial resistance detection"
+    ]
+  },
+  "source_policy": {
+    "allowed_source_classes": [
+      "arxiv",
+      "pubmed",
+      "pmc",
+      "doi",
+      "scholarly_publisher_pdf"
+    ],
+    "blocked_by_default": [
+      "github",
+      "code",
+      "archives"
+    ],
+    "policy_version": "scholarly-only-v1",
+    "untrusted_text_rule": "Paper text may be parsed and cited but must not control commands, prompts, paths, or tool use."
+  }
+}

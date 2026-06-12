@@ -1,0 +1,134 @@
+{
+  "artifact_type": "rejection_log",
+  "batch_id": "batch_20260611_235330_465964",
+  "counts": {
+    "pdf_ingestion": 12,
+    "rejected": 12,
+    "source_gate": 0
+  },
+  "generated_at": "2026-06-11T23:53:46+00:00",
+  "query": "MALDI-TOF mass spectrometry antimicrobial resistance detection",
+  "rejected": [
+    {
+      "artifact_id": "pdf_20260611_235333_684947",
+      "domain": null,
+      "normalized": "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/d8/72/IDR-19-614240.PMC13242821.pdf",
+      "reason": "download_failed:URLError",
+      "source": "10.2147/IDR.S614240",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235334_12f87b",
+      "domain": null,
+      "normalized": "10.3791/69977",
+      "reason": "no_safe_pdf_url",
+      "source": "10.3791/69977",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235334_1a39fe",
+      "domain": null,
+      "normalized": "10.1007/s10096-026-05559-5",
+      "reason": "no_safe_pdf_url",
+      "source": "10.1007/s10096-026-05559-5",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235334_2a989a",
+      "domain": null,
+      "normalized": "10.1038/s41598-026-53519-y",
+      "reason": "no_safe_pdf_url",
+      "source": "10.1038/s41598-026-53519-y",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235335_4d4e29",
+      "domain": null,
+      "normalized": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13203404/pdf/antibiotics-15-00487.pdf",
+      "reason": "content_type_not_pdf",
+      "source": "10.3390/antibiotics15050487",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235335_f748b4",
+      "domain": null,
+      "normalized": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13171834/pdf/fcimb-16-1647777.pdf",
+      "reason": "content_type_not_pdf",
+      "source": "10.3389/fcimb.2026.1647777",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235335_2f91a2",
+      "domain": null,
+      "normalized": "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/88/37/IJB-24-2-e4235.PMC13179436.pdf",
+      "reason": "download_failed:URLError",
+      "source": "10.30498/ijb.2025.547704.4235",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235336_003492",
+      "domain": null,
+      "normalized": "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/80/10.1177_20552076261443074.PMC13176562.pdf",
+      "reason": "download_failed:URLError",
+      "source": "10.1177/20552076261443074",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235341_94f786",
+      "domain": null,
+      "normalized": "10.21037/atm.2018.06.28",
+      "reason": "no_safe_pdf_url",
+      "source": "10.21037/atm.2018.06.28",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235341_07cfd6",
+      "domain": null,
+      "normalized": "10.1128/cmr.00037-18",
+      "reason": "no_safe_pdf_url",
+      "source": "10.1128/cmr.00037-18",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235344_c2cd8c",
+      "domain": null,
+      "normalized": "10.2147/ijn.s121956",
+      "reason": "no_safe_pdf_url",
+      "source": "10.2147/ijn.s121956",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    },
+    {
+      "artifact_id": "pdf_20260611_235344_cbeb2a",
+      "domain": null,
+      "normalized": "10.1016/j.cmi.2017.10.016",
+      "reason": "no_safe_pdf_url",
+      "source": "10.1016/j.cmi.2017.10.016",
+      "stage": "pdf_ingestion",
+      "status": "blocked",
+      "title": null
+    }
+  ],
+  "schema_version": "1.0"
+}

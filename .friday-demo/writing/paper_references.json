@@ -1,0 +1,29 @@
+[
+  {
+    "doi": "10.3389/fcimb.2020.572909",
+    "evidence_count": 25,
+    "journal": "Frontiers in Cellular and Infection Microbiology",
+    "label": "P1",
+    "source": "10.3389/fcimb.2020.572909",
+    "title": "Detection of Antibiotic-Resistance by MALDI-TOF Mass Spectrometry: An Expanding Area",
+    "year": 2020
+  },
+  {
+    "doi": "10.3389/fmicb.2018.01097",
+    "evidence_count": 25,
+    "journal": "Frontiers in Microbiology",
+    "label": "P2",
+    "source": "10.3389/fmicb.2018.01097",
+    "title": "Recent Advances and Ongoing Challenges in the Diagnosis of Microbial Infections by MALDI-TOF Mass Spectrometry",
+    "year": 2018
+  },
+  {
+    "doi": "10.3389/fmicb.2015.00791",
+    "evidence_count": 25,
+    "journal": "Frontiers in Microbiology",
+    "label": "P3",
+    "source": "10.3389/fmicb.2015.00791",
+    "title": "MALDI-TOF mass spectrometry: an emerging technology for microbial identification and diagnosis",
+    "year": 2015
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Deep-read coverage: 3 of 25 screened records produced stored PDFs.",
+    "reason": "evidence_gap"
+  },
+  {
+    "message": "PDF failures: 12 blocked or failed PDF attempts.",
+    "reason": "evidence_gap"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "batch_id": "batch_20260611_235330_465964",
+  "blocked_count": 0,
+  "deep_read_count": 3,
+  "query": "MALDI-TOF mass spectrometry antimicrobial resistance detection",
+  "report_type": "batch",
+  "screened_count": 25,
+  "screening_label_counts": {
+    "irrelevant": 0,
+    "maybe": 0,
+    "relevant": 0
+  }
+}
