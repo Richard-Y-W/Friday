@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "mathematical_linguistics.core",
+  "domain": "mathematical_linguistics",
+  "match_terms": [
+    "mathematical linguistics",
+    "formal language",
+    "formal language theory",
+    "automata",
+    "grammar"
+  ],
+  "required_terms": [
+    "language",
+    "math"
+  ],
+  "core_terms": [
+    "mathematical linguistics"
+  ],
+  "positive_terms": [
+    "mathematical linguistics",
+    "formal language theory",
+    "formal grammars",
+    "automata",
+    "syntax",
+    "algebraic linguistics"
+  ],
+  "negative_terms": [
+    "clinical aphasia",
+    "large language model homework",
+    "language education without formal theory"
+  ],
+  "search_queries": [
+    "mathematical linguistics",
+    "formal language theory natural language",
+    "formal grammars syntax",
+    "automata language theory"
+  ],
+  "source_preferences": [
+    "openalex",
+    "arxiv"
+  ],
+  "evidence_policy_hint": "math_theory"
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "information_theory.core",
+  "domain": "information_theory",
+  "match_terms": [
+    "information theory",
+    "entropy",
+    "coding theory"
+  ],
+  "required_terms": [
+    "language",
+    "math"
+  ],
+  "core_terms": [
+    "information theory"
+  ],
+  "positive_terms": [
+    "information theory",
+    "entropy",
+    "coding theory",
+    "language information",
+    "statistical language"
+  ],
+  "negative_terms": [
+    "information literacy",
+    "media studies without mathematical model"
+  ],
+  "search_queries": [
+    "information theory language",
+    "entropy language structure",
+    "statistical language information theory"
+  ],
+  "source_preferences": [
+    "openalex",
+    "arxiv"
+  ],
+  "evidence_policy_hint": "math_theory"
+}

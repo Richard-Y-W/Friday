@@ -639,6 +639,10 @@ def _layout_noise_flags(text: str) -> tuple[str, ...]:
         flags.append("column_stitching")
     if _ends_with_dangling_connector(text):
         flags.append("sentence_fragment")
+    if _has_formula_fragment(text):
+        flags.append("formula_fragment")
+    if _has_ocr_spaced_words(text):
+        flags.append("ocr_spacing")
     if re.fullmatch(r"(?:table|figure)\s+\d+.*", text, flags=re.IGNORECASE):
         flags.append("table_fragment")
     return tuple(_ordered_unique(flags))
@@ -716,7 +720,43 @@ def _has_mid_sentence_section_starter(text: str) -> bool:
 
 
 def _ends_with_dangling_connector(text: str) -> bool:
-    return re.search(r"\b(?:and|or|of|for|to|with|using|as|in|by|from)$", text.strip(), re.IGNORECASE) is not None
+    stripped = text.strip()
+    if re.search(r"\b(?:and|or|of|for|to|with|using|as|in|by|from|through|a|an|the)$", stripped, re.IGNORECASE):
+        return True
+    if re.search(r"\b(?:i\.e|e\.g)$", stripped, re.IGNORECASE):
+        return True
+    if re.search(r"\(\[\d+\s*,\s*(?:thm|theorem|lemma|prop|proposition)$", stripped, re.IGNORECASE):
+        return True
+    return False
+
+
+def _has_formula_fragment(text: str) -> bool:
+    stripped = text.strip()
+    math_chars = set("~∈∞∗∑∫√≤≥<>⊂⊕⊖⨏̃τ−")
+    math_char_count = sum(1 for char in stripped if char in math_chars)
+    bracket_count = sum(1 for char in stripped if char in "()[]{}")
+    operator_count = len(re.findall(r"(?:[A-Za-z]\s*[=<>]\s*[A-Za-z0-9~]|[A-Za-z]\s*[-+]\s*~|~\s*[A-Za-z0-9])", stripped))
+    word_count = _word_count(stripped)
+    if math_char_count + bracket_count >= 18 and operator_count >= 2:
+        return True
+    if word_count <= 20 and math_char_count + bracket_count >= 6 and operator_count >= 2:
+        return True
+    if re.match(r"^[<>=~({\[]", stripped) and (",," in stripped or "~" in stripped) and word_count <= 16:
+        return True
+    if math_char_count >= 4 and re.search(r"[:=]\s*[\{\[\(]?\s*\d+\s*,\s*$", stripped):
+        return True
+    if re.search(r"\b[A-Za-z][A-Za-z0-9]*\([^)]{0,20}~[^)]*\)", stripped) and math_char_count >= 3:
+        return True
+    return False
+
+
+def _has_ocr_spaced_words(text: str) -> bool:
+    spaced_words = re.findall(r"\b(?:[A-Za-z]\s+){3,}[A-Za-z]\b", text)
+    if len(spaced_words) >= 2:
+        return True
+    if spaced_words and sum(1 for char in text if char in "~=()[]{}") >= 8:
+        return True
+    return False
 
 
 def _classify(text: str) -> str | None:

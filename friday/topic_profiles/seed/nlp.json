@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "nlp.core",
+  "domain": "nlp",
+  "match_terms": [
+    "natural language processing",
+    "NLP",
+    "language model",
+    "parsing",
+    "semantic graph",
+    "abstract meaning representation"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "natural language processing"
+  ],
+  "positive_terms": [
+    "natural language processing",
+    "language models",
+    "parsing",
+    "semantic graphs",
+    "text generation",
+    "abstract meaning representation"
+  ],
+  "negative_terms": [
+    "antimicrobial resistance",
+    "adaptive mesh refinement"
+  ],
+  "search_queries": [
+    "natural language processing",
+    "language model evaluation",
+    "semantic parsing",
+    "abstract meaning representation parsing"
+  ],
+  "source_preferences": [
+    "arxiv",
+    "openalex"
+  ],
+  "evidence_policy_hint": "computer_science"
+}

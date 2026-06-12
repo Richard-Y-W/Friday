@@ -178,8 +178,16 @@ def _parser_preexec(memory_limit_bytes: int, cpu_seconds: int):
         return None
 
     def _apply() -> None:  # pragma: no cover - runs only in the POSIX child
-        _resource.setrlimit(_resource.RLIMIT_AS, (memory_limit_bytes, memory_limit_bytes))
-        _resource.setrlimit(_resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+        for limit_name, limit_value in (
+            (_resource.RLIMIT_AS, memory_limit_bytes),
+            (_resource.RLIMIT_CPU, cpu_seconds),
+        ):
+            try:
+                _resource.setrlimit(limit_name, (limit_value, limit_value))
+            except (OSError, ValueError):
+                # Some platforms reject specific rlimits in preexec_fn. Keep the
+                # parser sandbox best-effort instead of aborting every parse.
+                continue
 
     return _apply
 

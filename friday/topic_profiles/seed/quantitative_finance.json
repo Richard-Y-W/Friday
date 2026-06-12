@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "finance.quantitative_finance",
+  "domain": "quantitative_finance",
+  "match_terms": [
+    "finance",
+    "option pricing",
+    "portfolio",
+    "quantitative finance",
+    "Black-Scholes"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "quantitative finance"
+  ],
+  "positive_terms": [
+    "option pricing",
+    "portfolio optimization",
+    "Black-Scholes",
+    "financial mathematics",
+    "stochastic control"
+  ],
+  "negative_terms": [
+    "personal finance",
+    "corporate finance without stochastic model"
+  ],
+  "search_queries": [
+    "stochastic calculus finance",
+    "option pricing stochastic calculus",
+    "portfolio optimization stochastic control"
+  ],
+  "source_preferences": [
+    "arxiv",
+    "openalex"
+  ],
+  "evidence_policy_hint": "math_finance"
+}

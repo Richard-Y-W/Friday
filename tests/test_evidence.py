@@ -274,6 +274,63 @@ class EvidenceExtractionTests(unittest.TestCase):
         self.assertLess(blocked.score, 0.5)
         self.assertIn("column_stitching", blocked.flags)
 
+    def test_blocks_math_pdf_formula_and_ocr_fragments(self):
+        formula_soup = assess_evidence_quality(
+            "Thus, E [?m(F)(0~ (p)(~) HI N = ~ E[y,.(F)De~f~ol~)](r- z)J~H] j=l N = 2 "
+            "E EDej(H.cpI~) 7,,(r)(r-~)J')-~o 14)Des(Tm(F)(r-~)J')H j=l - 9 (~) "
+            "Y~(F)(F- 1)SiD e5 H3, where H is a simple functional of the form ~(w(eN+l), ..., W(eu))"
+        )
+        dangling_formula = assess_evidence_quality(
+            "If p ∈ [2, ∞), (M, τ ) is a C∗ -probability p p space, N ∈ N, "
+            "(Mn )N n=0 is a finite filtration of M, and x : {0,"
+        )
+        ocr_spaced = assess_evidence_quality(
+            "( w ~ + ~,o - w , ~ , ~ k=0 The fact that u\"~ D o r a c~ follows from "
+            "L e m m a 4.1, using the fact that u e IL2'1 , and m o r e o v e r : "
+            "n-1 n-1 tk+l,n tk+l,n a(u-)= E .-~,"
+        )
+        clean_math = assess_evidence_quality(
+            "One standard proof uses pathwise Stieltjes integration to reduce the process to a continuous local martingale."
+        )
+
+        self.assertEqual(formula_soup.label, "blocked")
+        self.assertIn("formula_fragment", formula_soup.flags)
+        self.assertEqual(dangling_formula.label, "blocked")
+        self.assertIn("formula_fragment", dangling_formula.flags)
+        self.assertEqual(ocr_spaced.label, "blocked")
+        self.assertIn("ocr_spacing", ocr_spaced.flags)
+        self.assertEqual(clean_math.label, "clean")
+
+    def test_blocks_remaining_stochastic_calculus_report_fragments(self):
+        formula_remark = assess_evidence_quality(
+            "(xn − xn−1 )∗ (xn − xn−1 ) = τ x0 x∗0 + n=1 n=1 Remark 5.21"
+        )
+        malformed_formula = assess_evidence_quality('< t,,n = 1 } with [H"[ ~ 0 as n ~ oe')
+        dangling_citation = assess_evidence_quality(
+            "One standard proof of this result proceeds as follows: 1) Use pathwise Stieltjes integration theory "
+            "on the FV part of X to reduce to the case in which X = M is a continuous local martingale, "
+            "2) use stopping time localization arguments to reduce to the case in which M and H are bounded, "
+            "and 3) use the Ito isometry ([14, Thm"
+        )
+        dangling_article = assess_evidence_quality(
+            "One standard approach is as follows: prove a product rule and extend the product rule from the "
+            "previous step to the desired class of functions through a"
+        )
+        dangling_abbreviation = assess_evidence_quality(
+            "The decomposition of Theorem 4.4 above corresponds to the case of n = 1 of [16], i.e"
+        )
+
+        self.assertEqual(formula_remark.label, "blocked")
+        self.assertIn("formula_fragment", formula_remark.flags)
+        self.assertEqual(malformed_formula.label, "blocked")
+        self.assertIn("formula_fragment", malformed_formula.flags)
+        self.assertEqual(dangling_citation.label, "blocked")
+        self.assertIn("sentence_fragment", dangling_citation.flags)
+        self.assertEqual(dangling_article.label, "blocked")
+        self.assertIn("sentence_fragment", dangling_article.flags)
+        self.assertEqual(dangling_abbreviation.label, "blocked")
+        self.assertIn("sentence_fragment", dangling_abbreviation.flags)
+
     def test_curates_blocked_evidence_separately_from_accepted_evidence(self):
         pages = [
             (

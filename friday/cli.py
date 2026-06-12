@@ -43,6 +43,7 @@ from friday.label_review import LABEL_REVIEW_FILTERS, build_label_review_rows
 from friday.llm.config import ROLES as LLM_ROLES, build_router
 from friday.llm.types import LLMRequest
 from friday.pdf_ingestion import PdfIngestionResult, deep_read_source
+from friday.query_planning import normalize_research_query
 from friday.relevance import rank_candidates
 from friday.reporting import (
     render_batch_report,
@@ -72,6 +73,7 @@ from friday.screening import (
 from friday.settings import flatten_settings, load_settings, set_setting
 from friday.source_policy import evaluate_source
 from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES
+from friday.topic_planning import update_topic_memory
 from friday.writing_copilot import (
     MODE_CHOICES,
     build_writing_package_files,
@@ -164,9 +166,9 @@ def main(
     if args.command == "scans":
         return _handle_scans(store)
     if args.command == "label":
-        return _handle_label(args, store)
+        return _handle_label(args, store, data_dir)
     if args.command == "labels":
-        return _handle_labels(args, store)
+        return _handle_labels(args, store, data_dir)
     if args.command == "auto-label":
         return _handle_auto_label(args, store, data_dir, llm_label_client)
     if args.command == "report":
@@ -670,8 +672,10 @@ def _handle_natural_language_query(
         print(writing_error)
         return 2
 
+    research_query = normalize_research_query(args.query)
+
     corpus_route = route_corpus_query(
-        args.query,
+        research_query,
         args.corpus_paths,
         min_score=args.corpus_min_score,
         min_matches=args.corpus_min_matches,
@@ -679,27 +683,30 @@ def _handle_natural_language_query(
     )
     if corpus_route.should_use_corpus and not args.write:
         print(f"Natural query: {args.query}")
+        if research_query != args.query:
+            print(f"Scholarly query: {research_query}")
         print("Natural query route: corpus")
         content = _format_corpus_report(args.format, corpus_route)
         _emit_output(content, args.output, label="corpus report")
         return 0
 
     store = FridayStore(data_dir / "friday.db")
-    batch = store.create_batch(query=args.query, limit=args.limit, mode="query")
+    batch = store.create_batch(query=research_query, limit=args.limit, mode="query")
     discovery_error = None
     try:
         candidates = _call_discoverer(
             discoverer,
-            args.query,
+            research_query,
             args.limit,
             page_size=args.page_size,
             request_delay_seconds=args.request_delay,
+            learned_profile_dir=_topic_memory_dir(data_dir),
         )
     except Exception as exc:
         candidates = []
         discovery_error = f"{type(exc).__name__}: {exc}"
 
-    candidates = rank_candidates(args.query, candidates)
+    candidates = rank_candidates(research_query, candidates, learned_profile_dir=_topic_memory_dir(data_dir))
     for candidate in candidates:
         decision = evaluate_source(candidate.source_for_gate)
         store.add_batch_item_if_new(
@@ -713,7 +720,7 @@ def _handle_natural_language_query(
         auto_label_batch_items(
             store,
             batch.batch_id,
-            query=args.query,
+            query=research_query,
             limit=args.auto_label_limit,
             apply=args.auto_label_apply,
             min_confidence=args.auto_label_min_confidence,
@@ -744,6 +751,8 @@ def _handle_natural_language_query(
         return report_data
 
     print(f"Natural query: {args.query}")
+    if research_query != args.query:
+        print(f"Scholarly query: {research_query}")
     print("Natural query route: scholarly")
     print(f"Batch ID: {loaded.batch_id}")
     if discovery_error:
@@ -809,11 +818,12 @@ def _handle_scan(
                 effective_limit,
                 page_size=args.page_size,
                 request_delay_seconds=args.request_delay,
+                learned_profile_dir=_topic_memory_dir(data_dir),
             )
         except Exception as exc:
             candidates = []
             discovery_error = f"{type(exc).__name__}: {exc}"
-        candidates = rank_candidates(query, candidates)
+        candidates = rank_candidates(query, candidates, learned_profile_dir=_topic_memory_dir(data_dir))
         for candidate in candidates:
             decision = evaluate_source(candidate.source_for_gate)
             store.add_batch_item_if_new(
@@ -924,12 +934,13 @@ def _handle_research(
             effective_limit,
             page_size=args.page_size,
             request_delay_seconds=args.request_delay,
+            learned_profile_dir=_topic_memory_dir(data_dir),
         )
     except Exception as exc:
         candidates = []
         discovery_error = f"{type(exc).__name__}: {exc}"
 
-    candidates = rank_candidates(query, candidates)
+    candidates = rank_candidates(query, candidates, learned_profile_dir=_topic_memory_dir(data_dir))
     for candidate in candidates:
         decision = evaluate_source(candidate.source_for_gate)
         store.add_batch_item_if_new(
@@ -1233,12 +1244,13 @@ def _handle_research_run(
                     limit,
                     page_size=page_size,
                     request_delay_seconds=request_delay,
+                    learned_profile_dir=_topic_memory_dir(data_dir),
                 )
             except Exception as exc:
                 candidates = []
                 discovery_error = f"{type(exc).__name__}: {exc}"
                 store.update_research_run(run.run_id, error=discovery_error)
-            candidates = rank_candidates(query, candidates)
+            candidates = rank_candidates(query, candidates, learned_profile_dir=_topic_memory_dir(data_dir))
             for candidate in candidates:
                 decision = evaluate_source(candidate.source_for_gate)
                 store.add_batch_item_if_new(
@@ -1473,7 +1485,7 @@ def _handle_scans(store: FridayStore) -> int:
     return 0
 
 
-def _handle_label(args: argparse.Namespace, store: FridayStore) -> int:
+def _handle_label(args: argparse.Namespace, store: FridayStore, data_dir: Path) -> int:
     batch_id = _batch_id_from_args(args, store, "label")
     if batch_id is None:
         return 1
@@ -1490,10 +1502,13 @@ def _handle_label(args: argparse.Namespace, store: FridayStore) -> int:
     print(f"Source: {label.source}")
     if label.note:
         print(f"Note: {label.note}")
+    updated_profile_id = _refresh_topic_memory_from_human_labels(store, batch_id, data_dir)
+    if updated_profile_id:
+        print(f"Updated topic memory: {updated_profile_id}")
     return 0
 
 
-def _handle_labels(args: argparse.Namespace, store: FridayStore) -> int:
+def _handle_labels(args: argparse.Namespace, store: FridayStore, data_dir: Path) -> int:
     if args.action == "eval":
         return _handle_labels_eval(args, store)
     if args.action == "export":
@@ -1501,7 +1516,7 @@ def _handle_labels(args: argparse.Namespace, store: FridayStore) -> int:
     if args.action == "review":
         return _handle_labels_review(args, store)
     if args.action == "set":
-        return _handle_labels_set(args, store)
+        return _handle_labels_set(args, store, data_dir)
     if getattr(args, "all", False):
         print("labels --all is only valid with labels export.")
         return 2
@@ -1659,7 +1674,7 @@ def _handle_labels_review(args: argparse.Namespace, store: FridayStore) -> int:
     return 0
 
 
-def _handle_labels_set(args: argparse.Namespace, store: FridayStore) -> int:
+def _handle_labels_set(args: argparse.Namespace, store: FridayStore, data_dir: Path) -> int:
     if getattr(args, "all", False):
         print("labels set requires --batch-id or --latest, not --all.")
         return 2
@@ -1691,7 +1706,51 @@ def _handle_labels_set(args: argparse.Namespace, store: FridayStore) -> int:
     print(f"Source: {label.source}")
     if label.note:
         print(f"Note: {label.note}")
+    updated_profile_id = _refresh_topic_memory_from_human_labels(store, batch_id, data_dir)
+    if updated_profile_id:
+        print(f"Updated topic memory: {updated_profile_id}")
     return 0
+
+
+def _topic_memory_dir(data_dir: Path) -> Path:
+    return Path(data_dir) / "topic_profiles" / "learned"
+
+
+def _refresh_topic_memory_from_human_labels(
+    store: FridayStore,
+    batch_id: str,
+    data_dir: Path,
+) -> str | None:
+    batch = store.get_batch(batch_id)
+    if not batch.query:
+        return None
+    labels = store.list_screening_labels(batch_id)
+    human_labels = {
+        label.normalized: label
+        for label in labels
+        if label.label_source == "human" and label.label in {"relevant", "irrelevant"}
+    }
+    if not human_labels:
+        return None
+    relevant_records: list[BatchItemRecord] = []
+    irrelevant_records: list[BatchItemRecord] = []
+    for item in store.list_batch_items(batch_id):
+        label = human_labels.get(item.normalized)
+        if label is None:
+            continue
+        if label.label == "relevant":
+            relevant_records.append(item)
+        elif label.label == "irrelevant":
+            irrelevant_records.append(item)
+    if not relevant_records and not irrelevant_records:
+        return None
+    profile = update_topic_memory(
+        _topic_memory_dir(data_dir),
+        batch.query,
+        relevant_records=relevant_records,
+        irrelevant_records=irrelevant_records,
+    )
+    return profile.profile_id
 
 
 def _existing_screening_label_for_source(store: FridayStore, batch_id: str, source: str):
@@ -2145,6 +2204,7 @@ def _call_discoverer(
     *,
     page_size: int,
     request_delay_seconds: float,
+    learned_profile_dir: Path | None = None,
 ) -> list[Candidate]:
     try:
         parameters = inspect.signature(discoverer).parameters
@@ -2155,6 +2215,8 @@ def _call_discoverer(
         kwargs["page_size"] = page_size
     if "request_delay_seconds" in parameters:
         kwargs["request_delay_seconds"] = request_delay_seconds
+    if "learned_profile_dir" in parameters:
+        kwargs["learned_profile_dir"] = learned_profile_dir
     return discoverer(query, limit, **kwargs)
 
 

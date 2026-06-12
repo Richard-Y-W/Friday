@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "math_probability.stochastic_calculus",
+  "domain": "math_probability",
+  "match_terms": [
+    "stochastic calculus",
+    "Ito calculus",
+    "Brownian motion",
+    "martingale",
+    "semimartingale",
+    "stochastic differential equation"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "stochastic calculus"
+  ],
+  "positive_terms": [
+    "Ito calculus",
+    "Brownian motion",
+    "stochastic differential equations",
+    "martingales",
+    "semimartingales",
+    "stochastic integration",
+    "Girsanov theorem",
+    "Stratonovich integral"
+  ],
+  "negative_terms": [
+    "generic calculus",
+    "calculus education",
+    "non-Newtonian calculus",
+    "calculus of variations",
+    "calculus of variations without stochastic terms",
+    "fractional calculus without stochastic terms"
+  ],
+  "search_queries": [
+    "stochastic calculus",
+    "Ito calculus stochastic",
+    "Brownian motion stochastic calculus",
+    "stochastic differential equations",
+    "martingale stochastic calculus",
+    "semimartingale stochastic integration",
+    "Girsanov theorem stochastic calculus",
+    "Stratonovich integral stochastic calculus"
+  ],
+  "source_preferences": [
+    "arxiv",
+    "openalex"
+  ],
+  "evidence_policy_hint": "math_theory"
+}

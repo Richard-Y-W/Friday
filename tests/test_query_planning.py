@@ -1,6 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from friday.query_planning import plan_query
+from friday.discovery import Candidate
+from friday.query_planning import normalize_research_query, plan_query
+from friday.topic_planning import update_topic_memory
 
 
 class QueryPlanningTests(unittest.TestCase):
@@ -99,11 +103,11 @@ class QueryPlanningTests(unittest.TestCase):
         self.assertEqual([resolved.acronym for resolved in unresolved], ["XYZ"])
         self.assertEqual(unresolved[0].meaning, "XYZ")
 
-    def test_keeps_unambiguous_query_when_no_acronym_is_resolved(self):
+    def test_uses_seed_profile_when_no_acronym_is_resolved(self):
         plan = plan_query("Pseudomonas MALDI spectra")
 
-        self.assertEqual(plan.intent, "unknown")
-        self.assertEqual(plan.expanded_queries, ("Pseudomonas MALDI spectra",))
+        self.assertEqual(plan.intent, "instrumentation")
+        self.assertIn("MALDI-TOF mass spectrometry", plan.expanded_queries)
         self.assertEqual(plan.resolved_acronyms, ())
 
     def test_rewrites_casual_math_language_prompt_to_scholarly_queries(self):
@@ -121,6 +125,49 @@ class QueryPlanningTests(unittest.TestCase):
 
         self.assertEqual(plan.intent, "mathematical_linguistics")
         self.assertIn("formal language theory natural language", plan.expanded_queries)
+
+    def test_normalizes_common_conversational_research_wrappers(self):
+        self.assertEqual(normalize_research_query("tell me about stochastic calculus"), "stochastic calculus")
+        self.assertEqual(normalize_research_query("friday tell me about MALDI AMR"), "MALDI AMR")
+        self.assertEqual(
+            normalize_research_query("what is the importance of math in language"),
+            "importance of math in language",
+        )
+
+    def test_plan_query_uses_normalized_research_query_for_unknown_topics(self):
+        plan = plan_query("tell me about stochastic calculus")
+
+        self.assertEqual(plan.intent, "math_probability")
+        self.assertEqual(plan.expanded_queries[0], "stochastic calculus")
+        self.assertIn("stochastic differential equations", plan.expanded_queries)
+        self.assertIn("martingale stochastic calculus", plan.expanded_queries)
+
+    def test_plan_query_uses_composed_topic_profile_for_cross_domain_topic(self):
+        plan = plan_query("stochastic calculus in finance")
+
+        self.assertEqual(plan.intent, "math_probability+quantitative_finance")
+        self.assertIn("stochastic calculus finance", plan.expanded_queries)
+        self.assertIn("option pricing stochastic calculus", plan.expanded_queries)
+
+    def test_plan_query_uses_learned_topic_profile(self):
+        with TemporaryDirectory() as tmp:
+            update_topic_memory(
+                Path(tmp),
+                "protein folding",
+                relevant_records=[
+                    Candidate(
+                        provider="openalex",
+                        title="Protein folding dynamics",
+                        source_for_gate="10.1000/folding",
+                        abstract="Protein folding and structural biology.",
+                        concepts="Protein folding; Structural biology",
+                    )
+                ],
+            )
+            plan = plan_query("protein folding", learned_profile_dir=Path(tmp))
+
+        self.assertEqual(plan.intent, "learned")
+        self.assertIn("protein folding Structural biology", plan.expanded_queries)
 
 
 if __name__ == "__main__":

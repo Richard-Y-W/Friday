@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "clinical.core",
+  "domain": "clinical",
+  "match_terms": [
+    "clinical",
+    "patient",
+    "diagnostic accuracy",
+    "sepsis",
+    "biomarker",
+    "stewardship"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "clinical evidence"
+  ],
+  "positive_terms": [
+    "clinical",
+    "patients",
+    "diagnostic accuracy",
+    "sensitivity",
+    "specificity",
+    "biomarker",
+    "sepsis",
+    "antibiotic stewardship"
+  ],
+  "negative_terms": [
+    "simulation-only",
+    "toy model without patient evidence"
+  ],
+  "search_queries": [
+    "clinical diagnostic accuracy",
+    "clinical biomarker evidence",
+    "sepsis antibiotic stewardship"
+  ],
+  "source_preferences": [
+    "pubmed",
+    "pmc",
+    "openalex"
+  ],
+  "evidence_policy_hint": "clinical"
+}

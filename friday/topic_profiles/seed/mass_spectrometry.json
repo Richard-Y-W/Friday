@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "instrumentation.mass_spectrometry",
+  "domain": "instrumentation",
+  "match_terms": [
+    "MALDI",
+    "MALDI-TOF",
+    "mass spectrometry",
+    "spectra"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "mass spectrometry"
+  ],
+  "positive_terms": [
+    "MALDI-TOF",
+    "mass spectrometry",
+    "spectra",
+    "clinical spectra",
+    "MALDI-TOF antimicrobial susceptibility"
+  ],
+  "negative_terms": [
+    "mass media",
+    "spectral graph theory without spectrometry"
+  ],
+  "search_queries": [
+    "MALDI-TOF mass spectrometry",
+    "MALDI-TOF antimicrobial susceptibility",
+    "MALDI antimicrobial resistance"
+  ],
+  "source_preferences": [
+    "pubmed",
+    "openalex"
+  ],
+  "evidence_policy_hint": "biomedical_instrumentation"
+}

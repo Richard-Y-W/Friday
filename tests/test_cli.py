@@ -144,7 +144,7 @@ class CliTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         def fake_discoverer(query, limit):
-            self.assertEqual(query, "tell me about MALDI AMR")
+            self.assertEqual(query, "MALDI AMR")
             return [
                 Candidate(
                     provider="arxiv",
@@ -208,6 +208,8 @@ class CliTests(unittest.TestCase):
             )
             package_dir = Path(package_line.split(": ", 1)[1])
             self.assertEqual(code, 0)
+            self.assertIn("Natural query: tell me about MALDI AMR", output)
+            self.assertIn("Scholarly query: MALDI AMR", output)
             self.assertIn("Natural query route: scholarly", output)
             self.assertTrue((package_dir / "report.md").exists())
             self.assertTrue((package_dir / "report.pdf").exists())
@@ -269,7 +271,7 @@ class CliTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         def fake_discoverer(query, limit):
-            self.assertEqual(query, "what is the importance of math in language")
+            self.assertEqual(query, "importance of math in language")
             self.assertEqual(limit, 2)
             return [
                 Candidate(
@@ -334,6 +336,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(deep_read_sources, ["10.1038/language-math"])
             self.assertIn("Natural query: what is the importance of math in language", output)
+            self.assertIn("Scholarly query: importance of math in language", output)
             self.assertIn("# Friday Batch Report", output)
             self.assertIn("Screening Labels", output)
 
@@ -1129,7 +1132,7 @@ class CliTests(unittest.TestCase):
             labels = report["screening_labels"]["labels"]
 
             self.assertEqual(code, 0)
-            self.assertEqual(fake_client.calls, [("what is the importance of math in language", "10.1000/natural-llm", "gpt-test")])
+            self.assertEqual(fake_client.calls, [("importance of math in language", "10.1000/natural-llm", "gpt-test")])
             self.assertEqual(labels[0]["label"], "relevant")
             self.assertIn("label_provider=llm", labels[0]["signals"])
 
@@ -1200,7 +1203,7 @@ class CliTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         def fake_discoverer(query, limit):
-            self.assertEqual(query, "friday tell me about MALDI AMR")
+            self.assertEqual(query, "MALDI AMR")
             self.assertEqual(limit, 1)
             return [
                 Candidate(
@@ -1373,7 +1376,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn(f"Wrote report: {report_path}", output)
             self.assertIn(f"Wrote writing draft: {draft_path}", output)
-            self.assertEqual(report["batch"]["query"], "tell me about MALDI AMR")
+            self.assertEqual(report["batch"]["query"], "MALDI AMR")
             self.assertIn("# Evidence-Bound Literature Review Draft", draft)
             self.assertIn("[P1 p2]", draft)
 
@@ -2736,6 +2739,11 @@ class CliTests(unittest.TestCase):
             self.assertEqual(labels[0].label, "relevant")
             self.assertEqual(labels[0].label_source, "human")
             self.assertEqual(labels[0].note, "human checked")
+            learned_path = data_dir / "topic_profiles" / "learned" / "learned.language_math.json"
+            learned = json.loads(learned_path.read_text(encoding="utf-8"))
+            self.assertIn("Updated topic memory: learned.language_math", output)
+            self.assertEqual(learned["profile_id"], "learned.language_math")
+            self.assertIn("Formal grammars", learned["positive_terms"])
 
     def test_research_run_llm_uses_smart_review_queue(self):
         from pathlib import Path
@@ -2818,8 +2826,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(fake_client.calls, ["https://arxiv.org/pdf/2401.99002"])
             self.assertIn("LLM-reviewed: 1", out.getvalue())
             self.assertEqual(summary["llm_review_queue"]["items"][0]["source"], "https://arxiv.org/pdf/2401.99002")
-            self.assertIn("heuristic_maybe", summary["llm_review_queue"]["items"][0]["reason"])
-            self.assertIn("low_confidence_label", summary["llm_review_queue"]["items"][0]["reason"])
+            self.assertIn("heuristic_maybe_high_relevance", summary["llm_review_queue"]["items"][0]["reason"])
             self.assertEqual(passport["llm_review_queue"]["items"][0]["source"], "https://arxiv.org/pdf/2401.99002")
 
     def test_import_corpus_writes_folder_adapter_outputs(self):

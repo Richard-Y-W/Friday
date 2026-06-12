@@ -2,6 +2,7 @@ import unittest
 
 from friday.discovery import Candidate
 from friday.llm_labeling import LlmLabelResult
+from friday.relevance import score_candidate
 from friday.screening import (
     auto_label_batch_items,
     build_llm_review_queue,
@@ -246,6 +247,30 @@ class ScreeningTests(unittest.TestCase):
             self.assertEqual(labels[maybe.source_for_gate].label, "maybe")
             self.assertEqual(labels[human_labeled.source_for_gate].label, "irrelevant")
             self.assertEqual(labels[human_labeled.source_for_gate].label_source, "human")
+
+    def test_auto_label_uses_topic_profile_for_stochastic_calculus(self):
+        relevant = score_candidate(
+            "tell me about stochastic calculus",
+            Candidate(
+                provider="openalex",
+                title="Stochastic calculus with anticipating integrands",
+                source_for_gate="10.1007/bf00353876",
+                doi="10.1007/bf00353876",
+                abstract="Stochastic integration for Brownian motion, martingales, and semimartingales.",
+            ),
+        )
+        generic_collision = score_candidate(
+            "tell me about stochastic calculus",
+            Candidate(
+                provider="arxiv",
+                title="On a Non-Newtonian Calculus of Variations",
+                source_for_gate="https://arxiv.org/pdf/2107.14152v1",
+                abstract="Non-Newtonian calculus of variations and Euler-Lagrange equations.",
+            ),
+        )
+
+        self.assertEqual(self._label_for("tell me about stochastic calculus", relevant), "relevant")
+        self.assertEqual(self._label_for("tell me about stochastic calculus", generic_collision), "irrelevant")
 
     def test_auto_label_uses_scholarly_query_terms_not_conversational_overlap(self):
         from pathlib import Path

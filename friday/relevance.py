@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 import re
 
 from friday.discovery import Candidate
 from friday.query_planning import plan_query
+from friday.topic_planning import TopicProfile, mine_metadata_profile, plan_topic
 
 
 BIOMEDICAL_TERMS = {
@@ -102,8 +104,16 @@ PROVIDER_RANK = {
 }
 
 
-def score_candidate(query: str, candidate: Candidate) -> Candidate:
-    query_intent = plan_query(query).intent
+def score_candidate(
+    query: str,
+    candidate: Candidate,
+    *,
+    topic_profile: TopicProfile | None = None,
+    learned_profile_dir: Path | None = None,
+) -> Candidate:
+    query_plan = plan_query(query, learned_profile_dir=learned_profile_dir)
+    query_intent = query_plan.intent
+    topic_profile = topic_profile or plan_topic(query_plan.original_query, learned_profile_dir=learned_profile_dir)
     text = _candidate_text(candidate)
     normalized = _normalize(text)
     score = 5 + PROVIDER_BONUS.get(candidate.provider, 0)
@@ -142,6 +152,11 @@ def score_candidate(query: str, candidate: Candidate) -> Candidate:
             score -= min(60, sum(weight for _, weight in generic_llm_hits))
             reasons.append("generic_language_model_penalty")
 
+    topic_score, topic_reasons = _topic_score(normalized, topic_profile)
+    if topic_score:
+        score += topic_score
+        reasons.extend(topic_reasons)
+
     if candidate.doi or candidate.pmid:
         score += 4
         reasons.append("identifier_bonus")
@@ -169,8 +184,22 @@ def score_candidate(query: str, candidate: Candidate) -> Candidate:
     )
 
 
-def rank_candidates(query: str, candidates: list[Candidate]) -> list[Candidate]:
-    scored = [score_candidate(query, candidate) for candidate in candidates]
+def rank_candidates(
+    query: str,
+    candidates: list[Candidate],
+    *,
+    learned_profile_dir: Path | None = None,
+) -> list[Candidate]:
+    topic_profile = _ranking_topic_profile(query, candidates, learned_profile_dir=learned_profile_dir)
+    scored = [
+        score_candidate(
+            query,
+            candidate,
+            topic_profile=topic_profile,
+            learned_profile_dir=learned_profile_dir,
+        )
+        for candidate in candidates
+    ]
     return [
         candidate
         for _, candidate in sorted(
@@ -183,6 +212,22 @@ def rank_candidates(query: str, candidates: list[Candidate]) -> list[Candidate]:
             ),
         )
     ]
+
+
+def _ranking_topic_profile(
+    query: str,
+    candidates: list[Candidate],
+    *,
+    learned_profile_dir: Path | None = None,
+) -> TopicProfile:
+    query_plan = plan_query(query, learned_profile_dir=learned_profile_dir)
+    topic_profile = plan_topic(query_plan.original_query, learned_profile_dir=learned_profile_dir)
+    if topic_profile.domain != "unknown":
+        return topic_profile
+    mined_profile = mine_metadata_profile(query_plan.original_query, candidates)
+    if mined_profile.domain != "unknown":
+        return mined_profile
+    return topic_profile
 
 
 def _candidate_text(candidate: Candidate) -> str:
@@ -250,3 +295,26 @@ def _metadata_hits(candidate: Candidate) -> list[tuple[str, int]]:
         "anti bacterial agents": 12,
     }
     return _weighted_hits(metadata, weighted_terms)
+
+
+def _topic_score(normalized_text: str, topic_profile: TopicProfile) -> tuple[int, list[str]]:
+    if topic_profile.domain == "unknown":
+        return 0, []
+
+    core_hits = _weighted_hits(normalized_text, {term: 36 for term in topic_profile.core_terms})
+    positive_hits = _weighted_hits(normalized_text, {term: 16 for term in topic_profile.positive_terms})
+    score = sum(weight for _, weight in core_hits + positive_hits)
+    reasons: list[str] = []
+    if core_hits or positive_hits:
+        reasons.append(
+            "topic_terms="
+            + ",".join(term for term, _ in (core_hits + positive_hits)[:6])
+        )
+
+    negative_hits = _weighted_hits(normalized_text, {term: 18 for term in topic_profile.negative_terms})
+    if negative_hits and not core_hits and not positive_hits:
+        penalty = min(80, sum(weight for _, weight in negative_hits) + 18)
+        score -= penalty
+        reasons.append("topic_collision_penalty=" + ",".join(term for term, _ in negative_hits[:4]))
+
+    return score, reasons

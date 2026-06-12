@@ -77,6 +77,20 @@
       }
     },
     {
+      "case_id": "gold.query.stochastic_calculus_topic",
+      "type": "query_plan",
+      "description": "A casual stochastic-calculus prompt becomes probability/math search variants.",
+      "query": "tell me about stochastic calculus",
+      "expected": {
+        "intent": "math_probability",
+        "expanded_contains": [
+          "stochastic calculus",
+          "stochastic differential equations",
+          "martingale stochastic calculus"
+        ]
+      }
+    },
+    {
       "case_id": "gold.query.maldi_mdr_mic_biomedical",
       "type": "query_plan",
       "description": "MDR and MIC expand only once biomedical context is present.",
@@ -504,6 +518,33 @@
       }
     },
     {
+      "case_id": "gold.ranking.stochastic_calculus_prefers_stochastic_context",
+      "type": "ranking",
+      "description": "Stochastic-calculus ranking prefers stochastic integration metadata over generic calculus collisions.",
+      "query": "tell me about stochastic calculus",
+      "candidates": [
+        {
+          "provider": "arxiv",
+          "title": "On a Non-Newtonian Calculus of Variations",
+          "source_for_gate": "https://arxiv.org/pdf/2107.14152v1",
+          "arxiv_id": "2107.14152",
+          "abstract": "Non-Newtonian calculus of variations and Euler-Lagrange equations.",
+          "year": 2025
+        },
+        {
+          "provider": "openalex",
+          "title": "Stochastic calculus with anticipating integrands",
+          "source_for_gate": "10.1007/bf00353876",
+          "doi": "10.1007/bf00353876",
+          "abstract": "Stochastic integration for Brownian motion, martingales, semimartingales, and anticipating integrands.",
+          "year": 1988
+        }
+      ],
+      "expected": {
+        "top_source": "10.1007/bf00353876"
+      }
+    },
+    {
       "case_id": "gold.label.maldi_amr_relevant",
       "type": "screening_label",
       "description": "Clear MALDI antimicrobial-resistance metadata is labeled relevant.",
@@ -653,6 +694,24 @@
       "expected": {
         "label": "irrelevant",
         "min_confidence": 0.70
+      }
+    },
+    {
+      "case_id": "gold.label.stochastic_calculus_collision_irrelevant",
+      "type": "screening_label",
+      "description": "Stochastic-calculus query rejects generic calculus collisions without stochastic context.",
+      "query": "tell me about stochastic calculus",
+      "candidate": {
+        "provider": "arxiv",
+        "title": "On a Non-Newtonian Calculus of Variations",
+        "source_for_gate": "https://arxiv.org/pdf/2107.14152v1",
+        "arxiv_id": "2107.14152",
+        "abstract": "Non-Newtonian calculus of variations and Euler-Lagrange equations.",
+        "relevance_score": 0
+      },
+      "expected": {
+        "label": "irrelevant",
+        "min_confidence": 0.75
       }
     },
     {

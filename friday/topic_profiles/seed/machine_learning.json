@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "machine_learning.core",
+  "domain": "machine_learning",
+  "match_terms": [
+    "machine learning",
+    "deep learning",
+    "neural network",
+    "transformer",
+    "representation learning",
+    "interpretability"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "machine learning"
+  ],
+  "positive_terms": [
+    "machine learning",
+    "deep learning",
+    "neural networks",
+    "transformers",
+    "representation learning",
+    "model interpretability",
+    "benchmark"
+  ],
+  "negative_terms": [
+    "classroom learning",
+    "clinical education without model evaluation"
+  ],
+  "search_queries": [
+    "machine learning",
+    "deep learning neural networks",
+    "transformer representation learning",
+    "model interpretability"
+  ],
+  "source_preferences": [
+    "arxiv",
+    "openalex"
+  ],
+  "evidence_policy_hint": "computer_science"
+}

@@ -130,6 +130,33 @@ WRONG_DOMAIN_FOR_MATH_LANGUAGE = {
     "patients",
 }
 
+STOCHASTIC_CALCULUS_CONTEXT_TOKENS = {
+    "brownian",
+    "calculus",
+    "differential",
+    "girsanov",
+    "integral",
+    "integration",
+    "ito",
+    "martingale",
+    "martingales",
+    "semimartingale",
+    "semimartingales",
+    "stochastic",
+    "stratonovich",
+}
+
+STOCHASTIC_CALCULUS_COLLISION_TOKENS = {
+    "education",
+    "euler",
+    "fractional",
+    "generic",
+    "lagrange",
+    "newtonian",
+    "non",
+    "variations",
+}
+
 MATH_LANGUAGE_METHOD_TOKENS = {
     "applied",
     "bayesian",
@@ -683,6 +710,10 @@ def _auto_label_item(item: BatchItemRecord, query_tokens: set[str]) -> AutoLabel
     clinical_stewardship_overlap = sorted(
         item_tokens.intersection(CLINICAL_STEWARDSHIP_RELEVANCE_TOKENS)
     )
+    stochastic_calculus_overlap = sorted(item_tokens.intersection(STOCHASTIC_CALCULUS_CONTEXT_TOKENS))
+    stochastic_calculus_collision_overlap = sorted(
+        item_tokens.intersection(STOCHASTIC_CALCULUS_COLLISION_TOKENS)
+    )
     simulation_package_overlap = sorted(item_tokens.intersection(SIMULATION_PACKAGE_TOKENS))
 
     if math_language_query:
@@ -721,6 +752,23 @@ def _auto_label_item(item: BatchItemRecord, query_tokens: set[str]) -> AutoLabel
             label = "irrelevant"
             confidence = min(0.9, 0.7 + max(0, 25 - relevance) / 250)
             rationale = "metadata lacks mathematical language evidence"
+    elif _is_stochastic_calculus_query_tokens(query_tokens):
+        if _is_stochastic_calculus_topic_match(item_tokens):
+            label = "relevant"
+            confidence = min(0.95, 0.7 + 0.04 * len(stochastic_calculus_overlap) + relevance / 300)
+            rationale = "metadata matches stochastic-calculus topic evidence"
+        elif _is_stochastic_calculus_collision(item_tokens):
+            label = "irrelevant"
+            confidence = min(0.9, 0.72 + 0.04 * len(stochastic_calculus_collision_overlap) + relevance / 400)
+            rationale = "metadata matches generic calculus collision without stochastic context"
+        elif len(overlap) >= 2 or relevance >= 35:
+            label = "maybe"
+            confidence = min(0.78, 0.55 + 0.06 * len(overlap) + relevance / 350)
+            rationale = "metadata partially matches stochastic-calculus query"
+        else:
+            label = "irrelevant"
+            confidence = min(0.88, 0.68 + relevance / 400)
+            rationale = "metadata lacks stochastic-calculus evidence"
     elif _is_maldi_amr_query_tokens(query_tokens):
         if _is_maldi_amr_biomedical_match(item_tokens):
             label = "relevant"
@@ -800,6 +848,8 @@ def _auto_label_item(item: BatchItemRecord, query_tokens: set[str]) -> AutoLabel
         f"maldi_amr_off_domain_overlap={','.join(maldi_amr_off_domain_overlap) or '-'};"
         f"surveillance_off_domain_overlap={','.join(surveillance_off_domain_overlap) or '-'};"
         f"clinical_stewardship_overlap={','.join(clinical_stewardship_overlap) or '-'};"
+        f"stochastic_calculus_overlap={','.join(stochastic_calculus_overlap) or '-'};"
+        f"stochastic_calculus_collision_overlap={','.join(stochastic_calculus_collision_overlap) or '-'};"
         f"simulation_package_overlap={','.join(simulation_package_overlap) or '-'};"
         f"relevance_score={relevance};"
         f"provider={item.provider or 'unknown'}"
@@ -927,6 +977,56 @@ def _is_math_language_method_match(item_tokens: set[str]) -> bool:
     ) and item_tokens.intersection({"linguistic", "linguistics", "psycholinguistics"}):
         return True
     return False
+
+
+def _is_stochastic_calculus_query_tokens(query_tokens: set[str]) -> bool:
+    if "stochastic" not in query_tokens:
+        return False
+    return bool(
+        query_tokens.intersection(
+            {
+                "brownian",
+                "calculus",
+                "differential",
+                "equations",
+                "girsanov",
+                "integration",
+                "ito",
+                "martingale",
+                "martingales",
+                "semimartingale",
+                "semimartingales",
+                "stratonovich",
+            }
+        )
+    )
+
+
+def _is_stochastic_calculus_topic_match(item_tokens: set[str]) -> bool:
+    if "stochastic" in item_tokens and item_tokens.intersection(
+        {"calculus", "differential", "equations", "integral", "integration"}
+    ):
+        return True
+    return bool(
+        item_tokens.intersection(
+            {
+                "brownian",
+                "girsanov",
+                "ito",
+                "martingale",
+                "martingales",
+                "semimartingale",
+                "semimartingales",
+                "stratonovich",
+            }
+        )
+    )
+
+
+def _is_stochastic_calculus_collision(item_tokens: set[str]) -> bool:
+    if _is_stochastic_calculus_topic_match(item_tokens):
+        return False
+    return "calculus" in item_tokens and bool(item_tokens.intersection(STOCHASTIC_CALCULUS_COLLISION_TOKENS))
 
 
 def _is_maldi_amr_query_tokens(query_tokens: set[str]) -> bool:

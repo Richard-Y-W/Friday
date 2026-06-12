@@ -8,6 +8,7 @@ from friday import pdf_parser
 from friday.pdf_parser import (
     PDF_PARSE_MAX_PAGES,
     _PARSER_ENV_ALLOWLIST,
+    _parser_preexec,
     _read_capped,
     _scrubbed_parser_env,
     ParsedPdfPage,
@@ -195,6 +196,19 @@ class PdfParserTests(unittest.TestCase):
         self.assertNotIn("FRIDAY_RANDOM_VAR", env)
         for key in env:
             self.assertIn(key, _PARSER_ENV_ALLOWLIST)
+
+    def test_parser_preexec_ignores_unsupported_rlimit_calls(self):
+        class RejectingResource:
+            RLIMIT_AS = 1
+            RLIMIT_CPU = 2
+
+            def setrlimit(self, _name, _limits):
+                raise OSError("unsupported rlimit")
+
+        with patch("friday.pdf_parser._resource", RejectingResource()):
+            preexec = _parser_preexec(1024, 1)
+
+            preexec()
 
     def test_read_capped_truncates_oversized_output(self):
         with TemporaryDirectory() as tmp:

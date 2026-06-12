@@ -1,7 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from friday.discovery import Candidate
 from friday.relevance import rank_candidates, score_candidate
+from friday.topic_planning import update_topic_memory
 
 
 class RelevanceTests(unittest.TestCase):
@@ -128,6 +131,107 @@ class RelevanceTests(unittest.TestCase):
         self.assertEqual(ranked[0].source_for_gate, formal_language.source_for_gate)
         self.assertIn("math_language_context", ranked[0].relevance_reason)
         self.assertIn("math_language_wrong_domain_penalty", ranked[1].relevance_reason)
+
+    def test_rank_candidates_respects_stochastic_calculus_topic_profile(self):
+        generic_calculus = Candidate(
+            provider="arxiv",
+            title="On a Non-Newtonian Calculus of Variations",
+            source_for_gate="https://arxiv.org/pdf/2107.14152v1",
+            abstract="Non-Newtonian calculus of variations and Euler-Lagrange equations.",
+            year=2025,
+        )
+        stochastic_calculus = Candidate(
+            provider="openalex",
+            title="Stochastic calculus with anticipating integrands",
+            source_for_gate="10.1007/bf00353876",
+            doi="10.1007/bf00353876",
+            abstract=(
+                "Stochastic integration for Brownian motion, martingales, "
+                "semimartingales, and anticipating integrands."
+            ),
+            year=1988,
+        )
+
+        ranked = rank_candidates("tell me about stochastic calculus", [generic_calculus, stochastic_calculus])
+
+        self.assertEqual(ranked[0].source_for_gate, stochastic_calculus.source_for_gate)
+        self.assertIn("topic_terms", ranked[0].relevance_reason)
+        self.assertIn("topic_collision_penalty", ranked[1].relevance_reason)
+
+    def test_rank_candidates_mines_session_profile_for_unknown_topics(self):
+        generic_pubmed = Candidate(
+            provider="pubmed",
+            title="Paper folding geometry for classroom activities",
+            source_for_gate="10.1000/paper-folding",
+            doi="10.1000/paper-folding",
+            abstract="Origami geometry activities for education.",
+            concepts="Geometry; Education",
+            year=2025,
+        )
+        protein_one = Candidate(
+            provider="openalex",
+            title="Protein folding dynamics",
+            source_for_gate="10.1000/protein-folding-1",
+            abstract="Protein folding pathways in structural biology.",
+            concepts="Protein folding; Structural biology; Molecular dynamics",
+            year=2024,
+        )
+        protein_two = Candidate(
+            provider="openalex",
+            title="Molecular dynamics of protein folding",
+            source_for_gate="10.1000/protein-folding-2",
+            abstract="Protein folding simulations with molecular dynamics.",
+            concepts="Protein folding; Molecular dynamics",
+            year=2023,
+        )
+
+        ranked = rank_candidates("protein folding", [generic_pubmed, protein_one, protein_two])
+
+        self.assertEqual(ranked[0].source_for_gate, protein_one.source_for_gate)
+        self.assertIn("topic_terms", ranked[0].relevance_reason)
+
+    def test_rank_candidates_uses_learned_topic_memory(self):
+        relevant = Candidate(
+            provider="openalex",
+            title="Protein folding dynamics",
+            source_for_gate="10.1000/learned-folding",
+            abstract="Protein folding and structural biology.",
+            concepts="Protein folding; Structural biology",
+        )
+        irrelevant = Candidate(
+            provider="openalex",
+            title="Paper folding geometry",
+            source_for_gate="10.1000/paper-folding",
+            abstract="Origami and paper folding geometry.",
+            concepts="Origami; Geometry",
+        )
+        candidate = Candidate(
+            provider="openalex",
+            title="Structural biology of protein folding",
+            source_for_gate="10.1000/protein-folding-3",
+            abstract="Protein folding mechanisms in structural biology.",
+            concepts="Protein folding; Structural biology",
+        )
+        collision = Candidate(
+            provider="pubmed",
+            title="Paper folding geometry activities",
+            source_for_gate="10.1000/paper-folding-2",
+            abstract="Origami geometry and paper folding activities.",
+            concepts="Origami; Geometry",
+        )
+
+        with TemporaryDirectory() as tmp:
+            update_topic_memory(
+                Path(tmp),
+                "protein folding",
+                relevant_records=[relevant],
+                irrelevant_records=[irrelevant],
+            )
+            ranked = rank_candidates("protein folding", [collision, candidate], learned_profile_dir=Path(tmp))
+
+        self.assertEqual(ranked[0].source_for_gate, candidate.source_for_gate)
+        self.assertIn("topic_terms", ranked[0].relevance_reason)
+        self.assertIn("topic_collision_penalty", ranked[1].relevance_reason)
 
 
 if __name__ == "__main__":

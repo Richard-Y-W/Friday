@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "biomedical_amr.core",
+  "domain": "biomedical_amr",
+  "match_terms": [
+    "MALDI AMR",
+    "antimicrobial resistance",
+    "antibiotic resistance",
+    "MDR",
+    "MIC",
+    "ESBL",
+    "CRE",
+    "susceptibility"
+  ],
+  "required_terms": [],
+  "core_terms": [
+    "antimicrobial resistance"
+  ],
+  "positive_terms": [
+    "antimicrobial resistance",
+    "antibiotic resistance",
+    "antimicrobial susceptibility testing",
+    "minimum inhibitory concentration",
+    "multidrug resistance",
+    "extended-spectrum beta-lactamase",
+    "carbapenem-resistant Enterobacteriaceae",
+    "clinical isolates"
+  ],
+  "negative_terms": [
+    "abstract meaning representation",
+    "adaptive mesh refinement",
+    "AMR parsing",
+    "semantic graph"
+  ],
+  "search_queries": [
+    "antimicrobial resistance",
+    "antibiotic resistance",
+    "antimicrobial susceptibility testing",
+    "clinical antimicrobial resistance surveillance"
+  ],
+  "source_preferences": [
+    "pubmed",
+    "openalex",
+    "pmc"
+  ],
+  "evidence_policy_hint": "biomedical"
+}

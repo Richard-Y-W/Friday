@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import json
 from math import ceil
+from pathlib import Path
 import re
 import time
 from typing import Any, Callable
@@ -56,6 +57,7 @@ def discover_candidates(
     page_size: int = 200,
     request_delay_seconds: float = 0.0,
     sleep: Callable[[float], None] | None = None,
+    learned_profile_dir: Path | None = None,
 ) -> list[Candidate]:
     if limit <= 0:
         return []
@@ -66,7 +68,7 @@ def discover_candidates(
     throttle = _RequestThrottle(request_delay_seconds, sleep or time.sleep)
     candidates: list[Candidate] = []
     provider_limits = _provider_limits(limit)
-    query_plan = plan_query(query)
+    query_plan = plan_query(query, learned_profile_dir=learned_profile_dir)
     query_variants = query_plan.expanded_queries
 
     openalex_limit = _per_variant_limit(provider_limits["openalex"], query_variants)

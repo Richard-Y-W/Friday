@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import re
 
 from friday.acronyms import resolve_acronyms
+from friday.topic_planning import plan_topic
 
 
 @dataclass(frozen=True)
@@ -61,9 +63,24 @@ MATH_LANGUAGE_EXPANSIONS = (
     "mathematical models of language acquisition",
 )
 
+LEADING_ASSISTANT_PREFIX = re.compile(r"^\s*(?:friday|jarvis)\b[\s,:-]*", re.IGNORECASE)
 
-def plan_query(query: str) -> QueryPlan:
-    original = " ".join(query.split())
+CONVERSATIONAL_QUERY_PREFIXES = (
+    re.compile(r"^\s*tell\s+me\s+about\s+", re.IGNORECASE),
+    re.compile(r"^\s*tell\s+me\s+", re.IGNORECASE),
+    re.compile(r"^\s*can\s+you\s+tell\s+me\s+about\s+", re.IGNORECASE),
+    re.compile(r"^\s*can\s+you\s+tell\s+me\s+", re.IGNORECASE),
+    re.compile(r"^\s*give\s+me\s+(?:a\s+)?(?:report|summary|overview)\s+(?:about|on|of)\s+", re.IGNORECASE),
+    re.compile(r"^\s*write\s+(?:a\s+)?(?:report|summary|overview)\s+(?:about|on|of)\s+", re.IGNORECASE),
+    re.compile(r"^\s*summarize\s+", re.IGNORECASE),
+    re.compile(r"^\s*explain\s+", re.IGNORECASE),
+    re.compile(r"^\s*what\s+(?:is|are|was|were)\s+(?:the\s+)?", re.IGNORECASE),
+    re.compile(r"^\s*what['’]s\s+(?:the\s+)?", re.IGNORECASE),
+)
+
+
+def plan_query(query: str, *, learned_profile_dir: Path | None = None) -> QueryPlan:
+    original = normalize_research_query(query)
     normalized = _normalize(original)
     resolved = [
         ResolvedAcronym(
@@ -80,6 +97,9 @@ def plan_query(query: str) -> QueryPlan:
         return QueryPlan(original, "mathematical_linguistics", MATH_LANGUAGE_EXPANSIONS, ())
 
     if not resolved:
+        topic_profile = plan_topic(original, learned_profile_dir=learned_profile_dir)
+        if topic_profile.domain != "unknown":
+            return QueryPlan(original, topic_profile.domain, topic_profile.search_queries, ())
         return QueryPlan(original, "unknown", (original,), ())
 
     intent = _dominant_intent(resolved)
@@ -121,6 +141,19 @@ def _expanded_queries(original: str, resolved: list[ResolvedAcronym], intent: st
         expansions.append(_replace_acronym(original, "AMR", "adaptive mesh refinement"))
 
     return tuple(_dedupe(expansions))
+
+
+def normalize_research_query(query: str) -> str:
+    cleaned = " ".join(query.split())
+    if not cleaned:
+        return ""
+    cleaned = LEADING_ASSISTANT_PREFIX.sub("", cleaned).strip()
+    for pattern in CONVERSATIONAL_QUERY_PREFIXES:
+        updated = pattern.sub("", cleaned).strip()
+        if updated != cleaned:
+            cleaned = updated
+            break
+    return cleaned or " ".join(query.split())
 
 
 def _dominant_intent(resolved: list[ResolvedAcronym]) -> str:
