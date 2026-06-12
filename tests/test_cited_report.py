@@ -147,6 +147,58 @@ class CitedEvidenceReportTests(unittest.TestCase):
             self.assertNotIn("interpretation of However", report)
             self.assertIn("- [P1 p5] The model achieved an AUROC of 0.91 in validation.", report)
 
+    def test_withholds_low_trust_clean_evidence_from_cited_report(self):
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
+            candidate = Candidate(
+                provider="openalex",
+                title="MALDI AMR paper",
+                source_for_gate="10.1038/trust-example",
+                doi="10.1038/trust-example",
+            )
+            store.add_batch_item(
+                batch.batch_id,
+                candidate.source_for_gate,
+                evaluate_source(candidate.source_for_gate),
+                candidate=candidate,
+            )
+            artifact = store.add_pdf_artifact(
+                batch.batch_id,
+                source=candidate.source_for_gate,
+                pdf_url="https://www.nature.com/articles/trust-example.pdf",
+                final_url="https://www.nature.com/articles/trust-example.pdf",
+                sha256="f" * 64,
+                byte_count=789,
+                content_type="application/pdf",
+                local_path="artifacts/batch_1/trust-example.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+            )
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="method",
+                        text="We used MALDI-TOF spectra from clinical isolates to train a resistance classifier.",
+                        page_number=1,
+                    ),
+                    EvidenceItem(
+                        evidence_type="result",
+                        text="The model achieved an AUROC of 0.91 in validation isolates.",
+                        page_number=2,
+                        quality_score=0.86,
+                        parse_confidence=0.82,
+                    ),
+                ],
+            )
+
+            report = render_cited_evidence_report(store, batch.batch_id)
+
+            self.assertIn("- [P1 p1] We used MALDI-TOF spectra from clinical isolates", report)
+            self.assertNotIn("AUROC of 0.91", report)
+            self.assertIn("Evidence trust gate withheld 1 low-trust extracted fragments.", report)
+
 
 if __name__ == "__main__":
     unittest.main()

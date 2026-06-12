@@ -52,6 +52,9 @@ EVIDENCE_TABLE_COLUMNS = (
     "quality_flags",
     "parse_confidence",
     "parse_flags",
+    "trust_label",
+    "trust_score",
+    "trust_reasons",
     "paper_title",
     "year",
     "journal",
@@ -270,6 +273,16 @@ def render_evidence_report_markdown(payload: dict[str, Any]) -> str:
         lines.append("- Blocked by flag:")
         for flag, count in sorted(blocked_by_flag.items()):
             lines.append(f"  - {flag}: {count}")
+    lines.extend(["", "## Evidence Trust", ""])
+    trusted_default = quality.get("accepted_evidence_count", len(payload.get("claims", []))) or 0
+    lines.append(f"- Trusted evidence: {quality.get('trusted_evidence_count', trusted_default) or 0}")
+    lines.append(f"- Review evidence: {quality.get('review_evidence_count', 0) or 0}")
+    lines.append(f"- Quarantined evidence: {quality.get('quarantined_evidence_count', quality.get('blocked_evidence_count', 0)) or 0}")
+    trust_reasons = quality.get("trust_reasons") or {}
+    if trust_reasons:
+        lines.append("- Trust reasons:")
+        for reason, count in sorted(trust_reasons.items()):
+            lines.append(f"  - {reason}: {count}")
     lines.extend(
         [
             "",
@@ -638,6 +651,9 @@ def _evidence_table_row(
         "quality_flags": ",".join(claim.get("quality_flags") or []),
         "parse_confidence": claim.get("parse_confidence"),
         "parse_flags": ",".join(claim.get("parse_flags") or []),
+        "trust_label": claim.get("trust_label"),
+        "trust_score": claim.get("trust_score"),
+        "trust_reasons": ",".join(claim.get("trust_reasons") or []),
         "paper_title": reference.get("title"),
         "year": reference.get("year"),
         "journal": reference.get("journal"),

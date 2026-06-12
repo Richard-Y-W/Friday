@@ -10,7 +10,7 @@ import secrets
 from typing import Iterator
 
 from friday.discovery import Candidate
-from friday.evidence import EvidenceItem
+from friday.evidence import EvidenceItem, assess_evidence_trust
 from friday.source_policy import SourceDecision, evaluate_source
 
 
@@ -137,6 +137,9 @@ class EvidenceRecord:
     quality_flags: tuple[str, ...]
     parse_confidence: float
     parse_flags: tuple[str, ...]
+    trust_label: str
+    trust_score: float
+    trust_reasons: tuple[str, ...]
     created_at: str
 
 
@@ -772,23 +775,28 @@ class FridayStore:
 
     def add_evidence_records(self, artifact_id: str, items: list[EvidenceItem]) -> list[EvidenceRecord]:
         created_at = _now()
-        records = [
-            EvidenceRecord(
-                evidence_id=_make_id("evidence"),
-                artifact_id=artifact_id,
-                evidence_type=item.evidence_type,
-                page_number=item.page_number,
-                text=item.text,
-                char_count=len(item.text),
-                quality_label=item.quality_label,
-                quality_score=item.quality_score,
-                quality_flags=item.quality_flags,
-                parse_confidence=item.parse_confidence,
-                parse_flags=item.parse_flags,
-                created_at=created_at,
+        records = []
+        for item in items:
+            trust = assess_evidence_trust(item)
+            records.append(
+                EvidenceRecord(
+                    evidence_id=_make_id("evidence"),
+                    artifact_id=artifact_id,
+                    evidence_type=item.evidence_type,
+                    page_number=item.page_number,
+                    text=item.text,
+                    char_count=len(item.text),
+                    quality_label=item.quality_label,
+                    quality_score=item.quality_score,
+                    quality_flags=item.quality_flags,
+                    parse_confidence=item.parse_confidence,
+                    parse_flags=item.parse_flags,
+                    trust_label=trust.label,
+                    trust_score=trust.score,
+                    trust_reasons=trust.reasons,
+                    created_at=created_at,
+                )
             )
-            for item in items
-        ]
         with self._connect() as conn:
             existing = conn.execute(
                 "select artifact_id from pdf_artifacts where artifact_id = ?",
@@ -800,8 +808,9 @@ class FridayStore:
                 """
                 insert into evidence_records (
                     evidence_id, artifact_id, evidence_type, page_number, text, char_count,
-                    quality_label, quality_score, quality_flags, parse_confidence, parse_flags, created_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    quality_label, quality_score, quality_flags, parse_confidence, parse_flags,
+                    trust_label, trust_score, trust_reasons, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -816,6 +825,9 @@ class FridayStore:
                         json.dumps(list(record.quality_flags), sort_keys=True),
                         record.parse_confidence,
                         json.dumps(list(record.parse_flags), sort_keys=True),
+                        record.trust_label,
+                        record.trust_score,
+                        json.dumps(list(record.trust_reasons), sort_keys=True),
                         record.created_at,
                     )
                     for record in records
@@ -955,6 +967,9 @@ class FridayStore:
                     quality_flags text not null default '[]',
                     parse_confidence real not null default 1.0,
                     parse_flags text not null default '[]',
+                    trust_label text not null default 'trusted',
+                    trust_score real not null default 1.0,
+                    trust_reasons text not null default '[]',
                     created_at text not null,
                     foreign key(artifact_id) references pdf_artifacts(artifact_id)
                 );
@@ -1043,10 +1058,51 @@ class FridayStore:
             "quality_flags": "alter table evidence_records add column quality_flags text not null default '[]'",
             "parse_confidence": "alter table evidence_records add column parse_confidence real not null default 1.0",
             "parse_flags": "alter table evidence_records add column parse_flags text not null default '[]'",
+            "trust_label": "alter table evidence_records add column trust_label text not null default 'trusted'",
+            "trust_score": "alter table evidence_records add column trust_score real not null default 1.0",
+            "trust_reasons": "alter table evidence_records add column trust_reasons text not null default '[]'",
         }
+        added_columns = set()
         for column, statement in migrations.items():
             if column not in existing:
                 conn.execute(statement)
+                added_columns.add(column)
+        if {"trust_label", "trust_score", "trust_reasons"} & added_columns:
+            self._backfill_evidence_trust(conn)
+
+    def _backfill_evidence_trust(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute(
+            """
+            select evidence_id, evidence_type, page_number, text, quality_label, quality_score,
+                   quality_flags, parse_confidence, parse_flags
+              from evidence_records
+            """
+        ).fetchall()
+        for row in rows:
+            item = EvidenceItem(
+                evidence_type=row["evidence_type"],
+                text=row["text"],
+                page_number=row["page_number"],
+                quality_label=row["quality_label"],
+                quality_score=float(row["quality_score"]),
+                quality_flags=_json_tuple(row["quality_flags"]),
+                parse_confidence=float(row["parse_confidence"]),
+                parse_flags=_json_tuple(row["parse_flags"]),
+            )
+            trust = assess_evidence_trust(item)
+            conn.execute(
+                """
+                update evidence_records
+                   set trust_label = ?, trust_score = ?, trust_reasons = ?
+                 where evidence_id = ?
+                """,
+                (
+                    trust.label,
+                    trust.score,
+                    json.dumps(list(trust.reasons), sort_keys=True),
+                    row["evidence_id"],
+                ),
+            )
 
     def _ensure_pdf_artifact_columns(self, conn: sqlite3.Connection) -> None:
         existing = _column_names(conn, "pdf_artifacts")
@@ -1196,6 +1252,9 @@ def _evidence_record_from_row(row: sqlite3.Row) -> EvidenceRecord:
         quality_flags=_json_tuple(row["quality_flags"]),
         parse_confidence=float(row["parse_confidence"]),
         parse_flags=_json_tuple(row["parse_flags"]),
+        trust_label=row["trust_label"],
+        trust_score=float(row["trust_score"]),
+        trust_reasons=_json_tuple(row["trust_reasons"]),
         created_at=row["created_at"],
     )
 

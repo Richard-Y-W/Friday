@@ -89,8 +89,16 @@ def build_cited_evidence_data(store: FridayStore, batch_id: str) -> dict[str, An
         for record in store.list_evidence_records(artifact.artifact_id)
         if not _is_clean_evidence(record)
     )
+    low_trust_evidence_count = sum(
+        1
+        for artifact in stored_artifacts
+        for record in store.list_evidence_records(artifact.artifact_id)
+        if _is_clean_evidence(record) and not _is_trusted_evidence(record)
+    )
     if blocked_evidence_count:
         evidence_gaps.append(f"Evidence quality gate blocked {blocked_evidence_count} extracted fragments.")
+    if low_trust_evidence_count:
+        evidence_gaps.append(f"Evidence trust gate withheld {low_trust_evidence_count} low-trust extracted fragments.")
     if not evidence_by_type.get("limitation"):
         evidence_gaps.append("No extracted limitation evidence found.")
 
@@ -119,7 +127,7 @@ def _evidence_by_type(
     evidence_by_type: dict[str, list[tuple[PaperReference, EvidenceRecord]]] = {}
     for reference in references:
         for record in store.list_evidence_records(reference.artifact.artifact_id):
-            if not _is_clean_evidence(record):
+            if not _is_trusted_evidence(record):
                 continue
             evidence_by_type.setdefault(record.evidence_type, []).append((reference, record))
     return evidence_by_type
@@ -141,6 +149,9 @@ def _evidence_data_by_type(
                 "quality_flags": list(record.quality_flags),
                 "parse_confidence": record.parse_confidence,
                 "parse_flags": list(record.parse_flags),
+                "trust_label": record.trust_label,
+                "trust_score": record.trust_score,
+                "trust_reasons": list(record.trust_reasons),
             }
             for reference, record in records
         ]
@@ -149,6 +160,10 @@ def _evidence_data_by_type(
 
 def _is_clean_evidence(record: EvidenceRecord) -> bool:
     return record.quality_label == "clean" and is_reportable_evidence_text(record.text)
+
+
+def _is_trusted_evidence(record: EvidenceRecord) -> bool:
+    return _is_clean_evidence(record) and record.trust_label == "trusted"
 
 
 def _paper_reference_data(reference: PaperReference) -> dict[str, Any]:

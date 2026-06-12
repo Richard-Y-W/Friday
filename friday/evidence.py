@@ -19,6 +19,26 @@ EVIDENCE_TYPES = {
 }
 
 QUALITY_LABELS = {"clean", "suspect", "blocked"}
+TRUST_LABELS = {"trusted", "review", "quarantined"}
+MIN_TRUSTED_EVIDENCE_SCORE = 0.8
+MIN_REVIEW_EVIDENCE_SCORE = 0.55
+
+TRUST_QUARANTINE_FLAGS = {
+    "column_stitching",
+    "document_parse_quality",
+    "embedded_heading",
+    "formula_fragment",
+    "front_matter",
+    "hyphenation_break",
+    "instruction_injection",
+    "low_page_parse_confidence",
+    "page_parse_quality",
+    "reference_section",
+    "sentence_fragment",
+    "short_fragment",
+    "symbol_loss",
+    "table_fragment",
+}
 
 INSTRUCTION_INJECTION_PATTERNS = (
     re.compile(r"\bignore (all )?(previous|prior|above) instructions\b", re.IGNORECASE),
@@ -37,10 +57,11 @@ NON_EVIDENCE_PATTERNS = (
     re.compile(r"\bcorresponding author\b", re.IGNORECASE),
     re.compile(r"\bavailability of data and materials\b", re.IGNORECASE),
     re.compile(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b", re.IGNORECASE),
-    re.compile(r"\bkeywords?:\b", re.IGNORECASE),
+    re.compile(r"\bkeywords?\s*:", re.IGNORECASE),
     re.compile(r"\bspecialty section\b", re.IGNORECASE),
     re.compile(r"\bcorrespondence\b", re.IGNORECASE),
-    re.compile(r"\breceived:\b|\baccepted:\b|\bpublished:\b", re.IGNORECASE),
+    re.compile(r"\breceived\s*:|\baccepted\s*:|\bpublished\s*:", re.IGNORECASE),
+    re.compile(r"\boriginal research\s+published\s*:", re.IGNORECASE),
     re.compile(r"\bdetection method advantages disadvantages\b", re.IGNORECASE),
     re.compile(r"\badvantages disadvantages\b", re.IGNORECASE),
 )
@@ -225,6 +246,13 @@ class EvidenceQuality:
 
 
 @dataclass(frozen=True)
+class EvidenceTrust:
+    label: str
+    score: float
+    reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class EvidenceItem:
     evidence_type: str
     text: str
@@ -234,6 +262,9 @@ class EvidenceItem:
     quality_flags: tuple[str, ...] = ()
     parse_confidence: float = 1.0
     parse_flags: tuple[str, ...] = ()
+    trust_label: str | None = None
+    trust_score: float | None = None
+    trust_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -402,6 +433,70 @@ def is_reportable_evidence_text(text: str) -> bool:
     return assess_evidence_quality(text).label == "clean"
 
 
+def assess_evidence_trust(item: EvidenceItem) -> EvidenceTrust:
+    reasons: list[str] = []
+    quality_score = _clamp_score(item.quality_score)
+    parse_confidence = _clamp_score(item.parse_confidence)
+    score = quality_score * parse_confidence
+    quarantine = False
+
+    if item.quality_label != "clean":
+        reasons.append(f"quality_label:{item.quality_label}")
+        score = min(score, 0.2)
+        quarantine = True
+    else:
+        current_quality = assess_evidence_quality(item.text)
+        if current_quality.label != "clean":
+            reasons.append("legacy_quality_filter")
+            reasons.extend(current_quality.flags)
+            score = min(score, 0.2)
+            quarantine = True
+    if quality_score < 0.9:
+        reasons.append("lower_quality_score")
+    if parse_confidence < 0.9:
+        reasons.append("lower_parse_confidence")
+    if parse_confidence < MIN_PAGE_PARSE_CONFIDENCE:
+        reasons.append("low_parse_confidence")
+        score = min(score, 0.3)
+        quarantine = True
+    if item.page_number <= 0:
+        reasons.append("missing_page_anchor")
+        score = min(score, 0.4)
+        quarantine = True
+    if _word_count(item.text) <= 4:
+        reasons.append("sentence_incomplete")
+        score = min(score, 0.45)
+        quarantine = True
+
+    for flag in item.quality_flags:
+        if flag in TRUST_QUARANTINE_FLAGS:
+            reasons.append(flag)
+            score = min(score, 0.2)
+            quarantine = True
+        else:
+            reasons.append(f"quality_flag:{flag}")
+            score = min(score, 0.78)
+
+    for flag in item.parse_flags:
+        reasons.append(f"parse_flag:{flag}")
+        score = min(score, 0.78)
+
+    score = round(_clamp_score(score), 3)
+    if quarantine or score < MIN_REVIEW_EVIDENCE_SCORE:
+        label = "quarantined"
+    elif score < MIN_TRUSTED_EVIDENCE_SCORE or reasons:
+        label = "review"
+    else:
+        label = "trusted"
+    return EvidenceTrust(label=label, score=score, reasons=tuple(_ordered_unique(reasons)))
+
+
+def is_trusted_evidence_item(item: EvidenceItem) -> bool:
+    if item.trust_label is not None:
+        return item.trust_label == "trusted"
+    return assess_evidence_trust(item).label == "trusted"
+
+
 def apply_document_parse_quality_gate(
     curation: EvidenceCurationResult,
     *,
@@ -453,6 +548,12 @@ def assess_evidence_quality(text: str) -> EvidenceQuality:
     if flags:
         return EvidenceQuality(label="blocked", score=0.2, flags=tuple(_ordered_unique(flags)))
     return EvidenceQuality(label="clean", score=1.0, flags=())
+
+
+def _clamp_score(value: float | None) -> float:
+    if value is None:
+        return 0.0
+    return max(0.0, min(float(value), 1.0))
 
 
 def _page_parse_quality_is_poor(accepted: list[EvidenceItem], blocked: list[EvidenceItem]) -> bool:

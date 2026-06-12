@@ -215,6 +215,15 @@ def render_batch_report_markdown(store: FridayStore, batch_id: str, *, data_dir:
         lines.append("- Blocked by flag:")
         for flag, count in sorted(quality["blocked_by_flag"].items()):
             lines.append(f"  - {flag}: {count}")
+    lines.extend(["", "## Evidence Trust", ""])
+    lines.append(f"- Trusted evidence: {quality.get('trusted_evidence_count', quality['accepted_evidence_count'])}")
+    lines.append(f"- Review evidence: {quality.get('review_evidence_count', 0)}")
+    lines.append(f"- Quarantined evidence: {quality.get('quarantined_evidence_count', quality['blocked_evidence_count'])}")
+    trust_reasons = quality.get("trust_reasons", {})
+    if trust_reasons:
+        lines.append("- Trust reasons:")
+        for reason, count in sorted(trust_reasons.items()):
+            lines.append(f"  - {reason}: {count}")
 
     audit = data["claim_support_audit"]
     lines.extend(["", "## Claim Support Audit", ""])
@@ -410,6 +419,10 @@ def _pdf_artifact_data(store: FridayStore, artifact: PdfArtifactRecord) -> dict[
         "blocked_evidence_count": quality["blocked_evidence_count"],
         "suspect_evidence_count": quality["suspect_evidence_count"],
         "blocked_by_flag": quality["blocked_by_flag"],
+        "trusted_evidence_count": quality["trusted_evidence_count"],
+        "review_evidence_count": quality["review_evidence_count"],
+        "quarantined_evidence_count": quality["quarantined_evidence_count"],
+        "trust_reasons": quality["trust_reasons"],
     }
 
 
@@ -426,7 +439,7 @@ def _evidence_status_data(
             stored_count += 1
         for record in store.list_evidence_records(artifact.artifact_id):
             all_records.append(record)
-            if not _is_clean_evidence_record(record):
+            if not _is_trusted_evidence_record(record):
                 continue
             if evidence_type_counts.get(record.evidence_type, 0) >= 2:
                 continue
@@ -481,7 +494,13 @@ def _render_evidence_status_from_data(data: dict[str, Any]) -> list[str]:
                 f"accepted={quality['accepted_evidence_count']} "
                 f"blocked={quality['blocked_evidence_count']} "
                 f"suspect={quality['suspect_evidence_count']}"
-            )
+            ),
+            (
+                "Evidence trust: "
+                f"trusted={quality.get('trusted_evidence_count', 0)} "
+                f"review={quality.get('review_evidence_count', 0)} "
+                f"quarantined={quality.get('quarantined_evidence_count', 0)}"
+            ),
         ]
     )
     preview = data["evidence_status"]["evidence_preview"]
@@ -510,12 +529,28 @@ def _is_clean_evidence_record(record: EvidenceRecord) -> bool:
     return record.quality_label == "clean" and is_reportable_evidence_text(record.text)
 
 
+def _is_trusted_evidence_record(record: EvidenceRecord) -> bool:
+    return _is_clean_evidence_record(record) and record.trust_label == "trusted"
+
+
 def _evidence_quality_summary(records: list[EvidenceRecord]) -> dict[str, Any]:
     accepted_count = 0
     blocked_count = 0
     suspect_count = 0
+    trusted_count = 0
+    review_count = 0
+    quarantined_count = 0
+    trust_reasons: dict[str, int] = {}
     blocked_by_flag: dict[str, int] = {}
     for record in records:
+        if record.trust_label == "trusted":
+            trusted_count += 1
+        elif record.trust_label == "review":
+            review_count += 1
+        else:
+            quarantined_count += 1
+        for reason in record.trust_reasons:
+            trust_reasons[reason] = trust_reasons.get(reason, 0) + 1
         if _is_clean_evidence_record(record):
             accepted_count += 1
             continue
@@ -531,6 +566,10 @@ def _evidence_quality_summary(records: list[EvidenceRecord]) -> dict[str, Any]:
         "blocked_evidence_count": blocked_count,
         "suspect_evidence_count": suspect_count,
         "blocked_by_flag": blocked_by_flag,
+        "trusted_evidence_count": trusted_count,
+        "review_evidence_count": review_count,
+        "quarantined_evidence_count": quarantined_count,
+        "trust_reasons": trust_reasons,
     }
 
 

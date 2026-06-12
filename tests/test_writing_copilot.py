@@ -75,6 +75,36 @@ class WritingCopilotTests(unittest.TestCase):
             self.assertIn("Blocked evidence: 1", package["report.md"])
             self.assertNotIn("Defense University", package["draft.md"])
 
+    def test_writing_payload_exports_trust_audit_and_uses_only_trusted_evidence(self):
+        with TemporaryDirectory() as tmp:
+            store, batch_id = _store_with_evidence(Path(tmp))
+            artifact = store.list_pdf_artifacts(batch_id)[0]
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="result",
+                        text="The model achieved an AUROC of 0.72 in a weakly parsed validation sentence.",
+                        page_number=4,
+                        quality_score=0.86,
+                        parse_confidence=0.82,
+                    )
+                ],
+            )
+            report_data = render_batch_report_json(store, batch_id)
+
+            payload = build_writing_payload(report_data, mode="literature-review")
+            package = build_writing_package_files(payload)
+
+            quality = payload["source_report"]["evidence_quality"]
+            self.assertEqual(quality["trusted_evidence_count"], 3)
+            self.assertEqual(quality["review_evidence_count"], 1)
+            self.assertEqual(quality["quarantined_evidence_count"], 0)
+            self.assertIn("Evidence Trust", package["report.md"])
+            self.assertIn("Trusted evidence: 3", package["report.md"])
+            self.assertIn("Review evidence: 1", package["report.md"])
+            self.assertNotIn("AUROC of 0.72", package["draft.md"])
+
     def test_outline_and_limitations_surface_gaps_when_no_evidence_exists(self):
         with TemporaryDirectory() as tmp:
             store = FridayStore(Path(tmp) / "friday.db")

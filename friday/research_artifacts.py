@@ -306,10 +306,16 @@ def _evidence_quality_summary(store: FridayStore, batch_id: str) -> dict[str, An
         for record in store.list_evidence_records(artifact.artifact_id)
     ]
     accepted = sum(1 for record in records if _is_clean_evidence(record))
+    trusted = sum(1 for record in records if _is_clean_evidence(record) and record.trust_label == "trusted")
+    review = sum(1 for record in records if record.trust_label == "review")
+    quarantined = sum(1 for record in records if record.trust_label == "quarantined")
     blocked_by_flag: dict[str, int] = {}
+    trust_reasons: dict[str, int] = {}
     blocked = 0
     suspect = 0
     for record in records:
+        for reason in record.trust_reasons:
+            trust_reasons[reason] = trust_reasons.get(reason, 0) + 1
         if _is_clean_evidence(record):
             continue
         if record.quality_label == "suspect":
@@ -323,6 +329,10 @@ def _evidence_quality_summary(store: FridayStore, batch_id: str) -> dict[str, An
         "blocked_evidence_count": blocked,
         "suspect_evidence_count": suspect,
         "blocked_by_flag": blocked_by_flag,
+        "trusted_evidence_count": trusted,
+        "review_evidence_count": review,
+        "quarantined_evidence_count": quarantined,
+        "trust_reasons": trust_reasons,
     }
 
 
@@ -360,6 +370,10 @@ def _empty_evidence_quality_summary() -> dict[str, Any]:
         "blocked_evidence_count": 0,
         "suspect_evidence_count": 0,
         "blocked_by_flag": {},
+        "trusted_evidence_count": 0,
+        "review_evidence_count": 0,
+        "quarantined_evidence_count": 0,
+        "trust_reasons": {},
     }
 
 

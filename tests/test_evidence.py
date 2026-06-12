@@ -5,12 +5,74 @@ from friday.evidence import (
     EvidenceItem,
     apply_document_parse_quality_gate,
     assess_evidence_quality,
+    assess_evidence_trust,
     curate_evidence_from_pages,
     extract_evidence_from_pages,
+    is_trusted_evidence_item,
 )
 
 
 class EvidenceExtractionTests(unittest.TestCase):
+    def test_assesses_trust_from_quality_parse_and_completeness(self):
+        trusted = EvidenceItem(
+            evidence_type="method",
+            text="We used MALDI-TOF spectra from clinical isolates to train a classifier for resistance prediction.",
+            page_number=2,
+            quality_score=1.0,
+            parse_confidence=0.96,
+        )
+        needs_review = EvidenceItem(
+            evidence_type="result",
+            text="The model achieved an AUROC of 0.91 in validation isolates.",
+            page_number=3,
+            quality_score=0.86,
+            parse_confidence=0.82,
+        )
+        quarantined = EvidenceItem(
+            evidence_type="method",
+            text="using the analysis software after exposure of antibiotics to isolates",
+            page_number=4,
+            quality_score=1.0,
+            quality_flags=("sentence_fragment",),
+            parse_confidence=1.0,
+        )
+
+        self.assertEqual(assess_evidence_trust(trusted).label, "trusted")
+        self.assertTrue(is_trusted_evidence_item(trusted))
+        self.assertEqual(assess_evidence_trust(needs_review).label, "review")
+        self.assertFalse(is_trusted_evidence_item(needs_review))
+        self.assertEqual(assess_evidence_trust(quarantined).label, "quarantined")
+        self.assertIn("sentence_fragment", assess_evidence_trust(quarantined).reasons)
+
+    def test_trust_quarantines_legacy_clean_text_that_now_fails_quality(self):
+        legacy_clean = EvidenceItem(
+            evidence_type="result",
+            text="TOF MS produces singly charged ions, thus interpretation of However, automation TABLE 1 | Microbial detection methods.",
+            page_number=4,
+            quality_label="clean",
+            quality_score=1.0,
+            quality_flags=(),
+            parse_confidence=1.0,
+        )
+
+        trust = assess_evidence_trust(legacy_clean)
+
+        self.assertEqual(trust.label, "quarantined")
+        self.assertIn("legacy_quality_filter", trust.reasons)
+
+    def test_blocks_front_matter_keywords_and_original_research_headers(self):
+        keywords = assess_evidence_quality(
+            "Keywords: MALDI-TOF MS, antimicrobial resistance screening, AMR, machine learning, Campylobacter, diagnostics"
+        )
+        original_research = assess_evidence_quality(
+            "ORIGINAL RESEARCH published: 18 February 2022 Combination of MALDI-TOF Mass Spectrometry and Machine Learning"
+        )
+
+        self.assertEqual(keywords.label, "blocked")
+        self.assertIn("front_matter", keywords.flags)
+        self.assertEqual(original_research.label, "blocked")
+        self.assertIn("front_matter", original_research.flags)
+
     def test_extracts_structured_evidence_with_page_numbers(self):
         pages = [
             (

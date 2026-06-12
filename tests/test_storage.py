@@ -349,6 +349,9 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(loaded[0].quality_flags, ())
             self.assertEqual(loaded[0].parse_confidence, 0.82)
             self.assertEqual(loaded[0].parse_flags, ("wide_spacing",))
+            self.assertEqual(loaded[0].trust_label, "review")
+            self.assertLess(loaded[0].trust_score, 0.8)
+            self.assertIn("parse_flag:wide_spacing", loaded[0].trust_reasons)
 
     def test_persists_blocked_evidence_quality_metadata(self):
         from tempfile import TemporaryDirectory
@@ -388,6 +391,8 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(loaded[0].quality_label, "blocked")
             self.assertEqual(loaded[0].quality_score, 0.2)
             self.assertEqual(loaded[0].quality_flags, ("column_stitching",))
+            self.assertEqual(loaded[0].trust_label, "quarantined")
+            self.assertIn("quality_label:blocked", loaded[0].trust_reasons)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,9 @@ def build_claim_support_audit(store: FridayStore, batch_id: str) -> dict[str, An
                 "quality_flags": record.get("quality_flags", []),
                 "parse_confidence": record.get("parse_confidence"),
                 "parse_flags": record.get("parse_flags", []),
+                "trust_label": record.get("trust_label"),
+                "trust_score": record.get("trust_score"),
+                "trust_reasons": record.get("trust_reasons", []),
             }
             if record["page_number"] > 0 and record["citation"]:
                 supported_claims.append({**audit_record, "support_status": "SUPPORTED"})

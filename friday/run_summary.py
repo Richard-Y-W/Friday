@@ -81,7 +81,10 @@ def render_run_summary_text(summary: dict[str, Any]) -> str:
             f"labeled={counts['labeled']} human={counts['human_labels']} agent={counts['agent_labels']} "
             f"unlabeled_allowed={counts['unlabeled_allowed']} stored_pdfs={counts['stored_pdfs']} "
             f"failed_pdfs={counts['failed_pdfs']} evidence={counts['evidence_items']} "
-            f"blocked_evidence={counts['blocked_evidence_items']}"
+            f"blocked_evidence={counts['blocked_evidence_items']} "
+            f"trusted_evidence={counts.get('trusted_evidence_items', 0)} "
+            f"review_evidence={counts.get('review_evidence_items', 0)} "
+            f"quarantined_evidence={counts.get('quarantined_evidence_items', 0)}"
         ),
         "",
         "Label evaluation:",
@@ -164,6 +167,13 @@ def _counts(
         for record in evidence_records
         if record.quality_label == "clean" and is_reportable_evidence_text(record.text)
     )
+    trusted_evidence_count = sum(
+        1
+        for record in evidence_records
+        if record.quality_label == "clean" and record.trust_label == "trusted" and is_reportable_evidence_text(record.text)
+    )
+    review_evidence_count = sum(1 for record in evidence_records if record.trust_label == "review")
+    quarantined_evidence_count = sum(1 for record in evidence_records if record.trust_label == "quarantined")
     blocked_evidence_count = len(evidence_records) - evidence_count
     return {
         "screened": len(items),
@@ -177,6 +187,9 @@ def _counts(
         "failed_pdfs": len([artifact for artifact in artifacts if artifact.status != "stored"]),
         "evidence_items": evidence_count,
         "blocked_evidence_items": blocked_evidence_count,
+        "trusted_evidence_items": trusted_evidence_count,
+        "review_evidence_items": review_evidence_count,
+        "quarantined_evidence_items": quarantined_evidence_count,
     }
 
 
