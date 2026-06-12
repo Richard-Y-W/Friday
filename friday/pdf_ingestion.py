@@ -4,49 +4,27 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 import hashlib
-import os
-import shutil
-import subprocess
-import tempfile
 from typing import Callable, Iterable
 from urllib.parse import urljoin, urlparse
 from urllib.request import urlopen
 import xml.etree.ElementTree as ET
 
-try:  # POSIX only; used to cap the parser's memory/CPU.
-    import resource as _resource
-except ImportError:  # pragma: no cover - Windows
-    _resource = None
-
 from friday.discovery import Candidate
-from friday.evidence import extract_evidence_from_pages
+from friday.evidence import apply_document_parse_quality_gate, curate_evidence_from_pages
+from friday.pdf_parser import (
+    LOW_CONFIDENCE_THRESHOLD,
+    ParsedPdfPage,
+    PdfParser,
+    parse_pdf_with_fallback,
+    parse_with_pdftotext_layout,
+    parser_from_extractor,
+)
 from friday.pdf_text import clean_pdf_pages
 from friday.source_policy import evaluate_source
 from friday.storage import FridayStore
 
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
-PDF_TEXT_TIMEOUT_SECONDS = 30
-# Sandbox caps for the untrusted-PDF parser (Phase 1). The parser handles
-# attacker-controlled input, so it runs with a scrubbed environment (no Friday
-# secrets), a wall-clock timeout, a bounded extracted-text size, and — on POSIX
-# — hard memory/CPU rlimits so a malformed or hostile PDF cannot exhaust the host.
-PDF_PARSE_MAX_PAGES = 1000
-PDF_PARSE_MAX_OUTPUT_BYTES = 20 * 1024 * 1024
-PDF_PARSE_MEMORY_LIMIT_BYTES = 1024 * 1024 * 1024
-# Environment variables the parser binary may legitimately need to locate
-# libraries/fonts. Everything else (API keys, tokens, network config) is dropped.
-_PARSER_ENV_ALLOWLIST = (
-    "PATH",
-    "SYSTEMROOT",
-    "WINDIR",
-    "TEMP",
-    "TMP",
-    "TMPDIR",
-    "HOME",
-    "LD_LIBRARY_PATH",
-    "DYLD_LIBRARY_PATH",
-)
 
 
 @dataclass(frozen=True)
@@ -105,6 +83,7 @@ def deep_read_source(
     candidate: Candidate | None = None,
     downloader: Downloader | None = None,
     extractor: Extractor | None = None,
+    parser: PdfParser | None = None,
     text_fetcher: TextFetcher | None = None,
 ) -> PdfIngestionResult:
     resolution = resolve_candidate_pdf_url(candidate, text_fetcher=text_fetcher or fetch_url_text)
@@ -137,7 +116,8 @@ def deep_read_source(
         )
 
     downloader = downloader or download_pdf
-    extractor = extractor or extract_pdf_text_pages
+    if parser is None and extractor is not None:
+        parser = parser_from_extractor(extractor)
 
     try:
         downloaded = downloader(source_decision.normalized)
@@ -214,7 +194,7 @@ def deep_read_source(
     absolute_path.write_bytes(downloaded.content)
 
     try:
-        pages = clean_pdf_pages([page.strip() for page in extractor(absolute_path)])
+        parse_result = parser(absolute_path) if parser is not None else parse_pdf_with_fallback(absolute_path)
     except Exception as exc:
         return _record_blocked(
             store,
@@ -228,7 +208,25 @@ def deep_read_source(
             f"text_extraction_failed:{type(exc).__name__}",
         )
 
-    pages = [page for page in pages if page]
+    if parse_result.confidence < LOW_CONFIDENCE_THRESHOLD:
+        return _record_blocked(
+            store,
+            batch_id,
+            source,
+            pdf_url,
+            downloaded.final_url,
+            downloaded.content_type,
+            len(downloaded.content),
+            content_hash,
+            "low_parse_confidence",
+            parser_name=parse_result.parser_name,
+            parser_version=parse_result.parser_version,
+            parse_confidence=parse_result.confidence,
+            parse_flags=parse_result.flags,
+        )
+
+    parsed_pages = _clean_parsed_pages(parse_result.pages)
+    pages = [page.text for page in parsed_pages]
     if not pages:
         return _record_blocked(
             store,
@@ -240,6 +238,10 @@ def deep_read_source(
             len(downloaded.content),
             content_hash,
             "no_extractable_text",
+            parser_name=parse_result.parser_name,
+            parser_version=parse_result.parser_version,
+            parse_confidence=parse_result.confidence,
+            parse_flags=parse_result.flags,
         )
 
     artifact = store.add_pdf_artifact(
@@ -253,9 +255,19 @@ def deep_read_source(
         local_path=relative_path.as_posix(),
         status="stored",
         reason="pdf_text_extracted",
+        parser_name=parse_result.parser_name,
+        parser_version=parse_result.parser_version,
+        parse_confidence=parse_result.confidence,
+        parse_flags=parse_result.flags,
     )
-    store.add_pdf_pages(artifact.artifact_id, pages)
-    store.add_evidence_records(artifact.artifact_id, extract_evidence_from_pages(pages))
+    store.add_pdf_pages(
+        artifact.artifact_id,
+        pages,
+        page_confidences=[page.confidence for page in parsed_pages],
+        page_flags=[page.flags for page in parsed_pages],
+    )
+    curation = apply_document_parse_quality_gate(curate_evidence_from_pages(pages))
+    store.add_evidence_records(artifact.artifact_id, [*curation.accepted, *curation.blocked])
     return PdfIngestionResult(
         status="stored",
         reason="pdf_text_extracted",
@@ -281,73 +293,8 @@ def fetch_url_text(url: str) -> str:
         return response.read(2 * 1024 * 1024).decode("utf-8", errors="replace")
 
 
-def _scrubbed_parser_env() -> dict[str, str]:
-    """A minimal environment for the parser: only library/font lookup vars, never
-    Friday's credentials or network configuration."""
-    return {key: os.environ[key] for key in _PARSER_ENV_ALLOWLIST if key in os.environ}
-
-
-def _parser_preexec(memory_limit_bytes: int, cpu_seconds: int):
-    """POSIX preexec that caps the parser's address space and CPU before exec.
-    Returns ``None`` on platforms without ``resource`` (e.g. Windows)."""
-    if _resource is None:
-        return None
-
-    def _apply() -> None:  # pragma: no cover - runs only in the POSIX child
-        _resource.setrlimit(_resource.RLIMIT_AS, (memory_limit_bytes, memory_limit_bytes))
-        _resource.setrlimit(_resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-
-    return _apply
-
-
-def _read_capped(path: Path, max_bytes: int) -> str:
-    """Read at most ``max_bytes`` of extracted text so a PDF that explodes into a
-    huge text stream cannot blow up Friday's memory downstream."""
-    with path.open("rb") as handle:
-        raw = handle.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raw = raw[:max_bytes]
-    return raw.decode("utf-8", errors="replace")
-
-
-def extract_pdf_text_pages(
-    path: Path,
-    *,
-    timeout_seconds: float = PDF_TEXT_TIMEOUT_SECONDS,
-    max_output_bytes: int = PDF_PARSE_MAX_OUTPUT_BYTES,
-    memory_limit_bytes: int = PDF_PARSE_MEMORY_LIMIT_BYTES,
-) -> list[str]:
-    """Extract page text from an untrusted PDF in a sandboxed subprocess.
-
-    The PDF is attacker-controlled input, so the parser (``pdftotext``) runs
-    out-of-process with: a scrubbed environment, a wall-clock timeout, a bounded
-    page count, a capped output size, and — on POSIX — hard memory/CPU rlimits.
-    Failures raise; the caller records them as a blocked artifact (PLAN §12).
-    """
-    executable = shutil.which("pdftotext")
-    if executable is None:
-        raise RuntimeError("pdftotext_not_found")
-
-    run_kwargs: dict[str, object] = {
-        "check": True,
-        "timeout": timeout_seconds,
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "env": _scrubbed_parser_env(),
-    }
-    preexec = _parser_preexec(memory_limit_bytes, int(timeout_seconds) + 5)
-    if preexec is not None:
-        run_kwargs["preexec_fn"] = preexec
-
-    with tempfile.TemporaryDirectory() as tmp:
-        output_path = Path(tmp) / "paper.txt"
-        subprocess.run(
-            [executable, "-q", "-f", "1", "-l", str(PDF_PARSE_MAX_PAGES), "-layout", str(path), str(output_path)],
-            **run_kwargs,
-        )
-        text = _read_capped(output_path, max_output_bytes)
-    return text.split("\f")
+def extract_pdf_text_pages(path: Path) -> list[str]:
+    return [page.text for page in parse_with_pdftotext_layout(path).pages]
 
 
 def _record_blocked(
@@ -360,6 +307,10 @@ def _record_blocked(
     byte_count: int | None,
     sha256: str | None,
     reason: str,
+    parser_name: str | None = None,
+    parser_version: str | None = None,
+    parse_confidence: float = 0.0,
+    parse_flags: tuple[str, ...] = (),
 ) -> PdfIngestionResult:
     artifact = store.add_pdf_artifact(
         batch_id,
@@ -372,6 +323,10 @@ def _record_blocked(
         local_path=None,
         status="blocked",
         reason=reason,
+        parser_name=parser_name,
+        parser_version=parser_version,
+        parse_confidence=parse_confidence,
+        parse_flags=parse_flags,
     )
     return PdfIngestionResult(
         status="blocked",
@@ -380,6 +335,24 @@ def _record_blocked(
         pdf_url=pdf_url,
         page_count=0,
     )
+
+
+def _clean_parsed_pages(pages: list[ParsedPdfPage]) -> list[ParsedPdfPage]:
+    source_pages = [page for page in pages if page.text.strip()]
+    cleaned_texts = clean_pdf_pages([page.text.strip() for page in source_pages])
+    cleaned_pages = []
+    for page, text in zip(source_pages, cleaned_texts):
+        if not text:
+            continue
+        cleaned_pages.append(
+            ParsedPdfPage(
+                page_number=page.page_number,
+                text=text,
+                confidence=page.confidence,
+                flags=page.flags,
+            )
+        )
+    return cleaned_pages
 
 
 def _looks_like_pdf_url(value: str) -> bool:

@@ -18,6 +18,7 @@ from friday.compose_agent import (
     ComposePackageError,
     SECTION_CHOICES,
     build_compose_package_files,
+    build_llm_compose_package_files,
 )
 from friday.corpus_adapters import (
     import_folder_corpus,
@@ -132,7 +133,7 @@ def main(
     if args.command == "import-corpus":
         return _handle_import_corpus(args)
     if args.command == "compose":
-        return _handle_compose(args)
+        return _handle_compose(args, data_dir)
     if not args.command:
         parser.print_help()
         return 2
@@ -613,6 +614,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Draft section to compose.",
     )
     compose.add_argument("--output", required=True, help="Directory to write compose artifacts.")
+    compose.add_argument(
+        "--llm",
+        action="store_true",
+        help="Use the configured composer role for polished prose, with deterministic fallback on any audit failure.",
+    )
 
     return parser
 
@@ -1938,9 +1944,16 @@ def _handle_write(args: argparse.Namespace, store: FridayStore) -> int:
     return 0
 
 
-def _handle_compose(args: argparse.Namespace) -> int:
+def _handle_compose(args: argparse.Namespace, data_dir: Path) -> int:
     try:
-        files = build_compose_package_files(Path(args.package_dir), section=args.section)
+        if args.llm:
+            files = build_llm_compose_package_files(
+                Path(args.package_dir),
+                section=args.section,
+                router=build_router(load_settings(data_dir)),
+            )
+        else:
+            files = build_compose_package_files(Path(args.package_dir), section=args.section)
     except ComposePackageError as exc:
         print(f"Compose package error: {exc}")
         return 2

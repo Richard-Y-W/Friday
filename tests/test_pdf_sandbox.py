@@ -3,12 +3,12 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from friday import pdf_ingestion
-from friday.pdf_ingestion import (
+from friday import pdf_parser
+from friday.pdf_parser import (
     _PARSER_ENV_ALLOWLIST,
     _read_capped,
     _scrubbed_parser_env,
-    extract_pdf_text_pages,
+    parse_with_pdftotext_layout,
 )
 
 
@@ -55,14 +55,14 @@ class ReadCappedTests(unittest.TestCase):
 
 class ExtractPdfTextPagesTests(unittest.TestCase):
     def test_missing_pdftotext_raises(self):
-        original = pdf_ingestion.shutil.which
-        pdf_ingestion.shutil.which = lambda name: None
+        original = pdf_parser.shutil.which
+        pdf_parser.shutil.which = lambda name: None
         try:
             with self.assertRaises(RuntimeError) as ctx:
-                extract_pdf_text_pages(Path("nope.pdf"))
+                parse_with_pdftotext_layout(Path("nope.pdf"))
             self.assertIn("pdftotext_not_found", str(ctx.exception))
         finally:
-            pdf_ingestion.shutil.which = original
+            pdf_parser.shutil.which = original
 
     def test_runs_sandboxed_with_scrubbed_env_and_caps(self):
         captured = {}
@@ -79,24 +79,24 @@ class ExtractPdfTextPagesTests(unittest.TestCase):
 
             return _Completed()
 
-        original_run = pdf_ingestion.subprocess.run
-        original_which = pdf_ingestion.shutil.which
-        pdf_ingestion.subprocess.run = fake_run
-        pdf_ingestion.shutil.which = lambda name: "/usr/bin/pdftotext"
+        original_run = pdf_parser.subprocess.run
+        original_which = pdf_parser.shutil.which
+        pdf_parser.subprocess.run = fake_run
+        pdf_parser.shutil.which = lambda name: "/usr/bin/pdftotext"
         os.environ["ANTHROPIC_API_KEY"] = "sk-ant-should-not-reach-parser"
         try:
-            pages = extract_pdf_text_pages(Path("paper.pdf"), timeout_seconds=12.0)
+            result = parse_with_pdftotext_layout(Path("paper.pdf"))
         finally:
-            pdf_ingestion.subprocess.run = original_run
-            pdf_ingestion.shutil.which = original_which
+            pdf_parser.subprocess.run = original_run
+            pdf_parser.shutil.which = original_which
             del os.environ["ANTHROPIC_API_KEY"]
 
-        self.assertEqual(pages, ["PAGE ONE", "PAGE TWO"])
-        self.assertEqual(captured["kwargs"]["timeout"], 12.0)
+        self.assertEqual([page.text for page in result.pages], ["PAGE ONE", "PAGE TWO"])
+        self.assertEqual(captured["kwargs"]["timeout"], pdf_parser.PDF_TEXT_TIMEOUT_SECONDS)
         self.assertTrue(captured["kwargs"]["check"])
         self.assertNotIn("ANTHROPIC_API_KEY", captured["kwargs"]["env"])
         self.assertIn("-l", captured["args"])
-        self.assertIn(str(pdf_ingestion.PDF_PARSE_MAX_PAGES), captured["args"])
+        self.assertIn(str(pdf_parser.PDF_PARSE_MAX_PAGES), captured["args"])
 
 
 if __name__ == "__main__":

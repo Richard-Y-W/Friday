@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from friday.evidence import is_reportable_evidence_text
 from friday.label_eval import build_label_evaluation
 from friday.research_artifacts import build_rejection_log
 from friday.screening import build_llm_review_queue
@@ -79,7 +80,8 @@ def render_run_summary_text(summary: dict[str, Any]) -> str:
             f"screened={counts['screened']} blocked={counts['blocked']} allowed={counts['allowed']} "
             f"labeled={counts['labeled']} human={counts['human_labels']} agent={counts['agent_labels']} "
             f"unlabeled_allowed={counts['unlabeled_allowed']} stored_pdfs={counts['stored_pdfs']} "
-            f"failed_pdfs={counts['failed_pdfs']} evidence={counts['evidence_items']}"
+            f"failed_pdfs={counts['failed_pdfs']} evidence={counts['evidence_items']} "
+            f"blocked_evidence={counts['blocked_evidence_items']}"
         ),
         "",
         "Label evaluation:",
@@ -152,7 +154,17 @@ def _counts(
 ) -> dict[str, int]:
     allowed_items = [item for item in items if item.allowed]
     labels_by_normalized = {label.normalized: label for label in labels}
-    evidence_count = sum(len(store.list_evidence_records(artifact.artifact_id)) for artifact in artifacts)
+    evidence_records = [
+        record
+        for artifact in artifacts
+        for record in store.list_evidence_records(artifact.artifact_id)
+    ]
+    evidence_count = sum(
+        1
+        for record in evidence_records
+        if record.quality_label == "clean" and is_reportable_evidence_text(record.text)
+    )
+    blocked_evidence_count = len(evidence_records) - evidence_count
     return {
         "screened": len(items),
         "blocked": len([item for item in items if not item.allowed]),
@@ -164,6 +176,7 @@ def _counts(
         "stored_pdfs": len([artifact for artifact in artifacts if artifact.status == "stored"]),
         "failed_pdfs": len([artifact for artifact in artifacts if artifact.status != "stored"]),
         "evidence_items": evidence_count,
+        "blocked_evidence_items": blocked_evidence_count,
     }
 
 

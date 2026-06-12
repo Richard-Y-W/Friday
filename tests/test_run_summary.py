@@ -84,7 +84,13 @@ class RunSummaryDashboardTests(unittest.TestCase):
             )
             store.add_evidence_records(
                 stored.artifact_id,
-                [EvidenceItem(evidence_type="result", text="The method detected resistance.", page_number=4)],
+                [
+                    EvidenceItem(
+                        evidence_type="result",
+                        text="The method detected antimicrobial resistance in validation samples.",
+                        page_number=4,
+                    )
+                ],
             )
             store.add_pdf_artifact(
                 batch.batch_id,

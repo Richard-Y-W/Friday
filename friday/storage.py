@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import sqlite3
 import secrets
 from typing import Iterator
@@ -105,6 +106,10 @@ class PdfArtifactRecord:
     local_path: str | None
     status: str
     reason: str
+    parser_name: str | None
+    parser_version: str | None
+    parse_confidence: float
+    parse_flags: tuple[str, ...]
     created_at: str
 
 
@@ -114,6 +119,8 @@ class PdfPageRecord:
     page_number: int
     text: str
     char_count: int
+    parse_confidence: float
+    parse_flags: tuple[str, ...]
     created_at: str
 
 
@@ -125,6 +132,9 @@ class EvidenceRecord:
     page_number: int
     text: str
     char_count: int
+    quality_label: str
+    quality_score: float
+    quality_flags: tuple[str, ...]
     created_at: str
 
 
@@ -630,6 +640,10 @@ class FridayStore:
         local_path: str | None,
         status: str,
         reason: str,
+        parser_name: str | None = None,
+        parser_version: str | None = None,
+        parse_confidence: float = 0.0,
+        parse_flags: tuple[str, ...] = (),
     ) -> PdfArtifactRecord:
         artifact_id = _make_id("pdf")
         created_at = _now()
@@ -642,8 +656,9 @@ class FridayStore:
                 """
                 insert into pdf_artifacts (
                     artifact_id, batch_id, source, pdf_url, final_url, sha256,
-                    byte_count, content_type, local_path, status, reason, created_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    byte_count, content_type, local_path, status, reason,
+                    parser_name, parser_version, parse_confidence, parse_flags, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     artifact_id,
@@ -657,6 +672,10 @@ class FridayStore:
                     local_path,
                     status,
                     reason,
+                    parser_name,
+                    parser_version,
+                    parse_confidence,
+                    json.dumps(list(parse_flags), sort_keys=True),
                     created_at,
                 ),
             )
@@ -677,10 +696,21 @@ class FridayStore:
             local_path=local_path,
             status=status,
             reason=reason,
+            parser_name=parser_name,
+            parser_version=parser_version,
+            parse_confidence=parse_confidence,
+            parse_flags=parse_flags,
             created_at=created_at,
         )
 
-    def add_pdf_pages(self, artifact_id: str, pages: list[str]) -> list[PdfPageRecord]:
+    def add_pdf_pages(
+        self,
+        artifact_id: str,
+        pages: list[str],
+        *,
+        page_confidences: list[float] | None = None,
+        page_flags: list[tuple[str, ...]] | None = None,
+    ) -> list[PdfPageRecord]:
         created_at = _now()
         records = [
             PdfPageRecord(
@@ -688,6 +718,8 @@ class FridayStore:
                 page_number=index,
                 text=text,
                 char_count=len(text),
+                parse_confidence=(page_confidences[index - 1] if page_confidences and index - 1 < len(page_confidences) else 1.0),
+                parse_flags=(page_flags[index - 1] if page_flags and index - 1 < len(page_flags) else ()),
                 created_at=created_at,
             )
             for index, text in enumerate(pages, start=1)
@@ -702,8 +734,8 @@ class FridayStore:
             conn.executemany(
                 """
                 insert into pdf_pages (
-                    artifact_id, page_number, text, char_count, created_at
-                ) values (?, ?, ?, ?, ?)
+                    artifact_id, page_number, text, char_count, parse_confidence, parse_flags, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -711,6 +743,8 @@ class FridayStore:
                         record.page_number,
                         record.text,
                         record.char_count,
+                        record.parse_confidence,
+                        json.dumps(list(record.parse_flags), sort_keys=True),
                         record.created_at,
                     )
                     for record in records
@@ -744,6 +778,9 @@ class FridayStore:
                 page_number=item.page_number,
                 text=item.text,
                 char_count=len(item.text),
+                quality_label=item.quality_label,
+                quality_score=item.quality_score,
+                quality_flags=item.quality_flags,
                 created_at=created_at,
             )
             for item in items
@@ -758,8 +795,9 @@ class FridayStore:
             conn.executemany(
                 """
                 insert into evidence_records (
-                    evidence_id, artifact_id, evidence_type, page_number, text, char_count, created_at
-                ) values (?, ?, ?, ?, ?, ?, ?)
+                    evidence_id, artifact_id, evidence_type, page_number, text, char_count,
+                    quality_label, quality_score, quality_flags, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -769,6 +807,9 @@ class FridayStore:
                         record.page_number,
                         record.text,
                         record.char_count,
+                        record.quality_label,
+                        record.quality_score,
+                        json.dumps(list(record.quality_flags), sort_keys=True),
                         record.created_at,
                     )
                     for record in records
@@ -877,6 +918,10 @@ class FridayStore:
                     local_path text,
                     status text not null,
                     reason text not null,
+                    parser_name text,
+                    parser_version text,
+                    parse_confidence real not null default 0.0,
+                    parse_flags text not null default '[]',
                     created_at text not null,
                     foreign key(batch_id) references batches(batch_id)
                 );
@@ -886,6 +931,8 @@ class FridayStore:
                     page_number integer not null,
                     text text not null,
                     char_count integer not null,
+                    parse_confidence real not null default 1.0,
+                    parse_flags text not null default '[]',
                     created_at text not null,
                     foreign key(artifact_id) references pdf_artifacts(artifact_id)
                 );
@@ -897,6 +944,9 @@ class FridayStore:
                     page_number integer not null,
                     text text not null,
                     char_count integer not null,
+                    quality_label text not null default 'clean',
+                    quality_score real not null default 1.0,
+                    quality_flags text not null default '[]',
                     created_at text not null,
                     foreign key(artifact_id) references pdf_artifacts(artifact_id)
                 );
@@ -919,6 +969,9 @@ class FridayStore:
                 """
             )
             self._ensure_batch_item_columns(conn)
+            self._ensure_pdf_artifact_columns(conn)
+            self._ensure_pdf_page_columns(conn)
+            self._ensure_evidence_record_columns(conn)
             self._ensure_screening_label_columns(conn)
 
     @contextmanager
@@ -969,6 +1022,39 @@ class FridayStore:
             "confidence": "alter table screening_labels add column confidence real",
             "rationale": "alter table screening_labels add column rationale text",
             "signals": "alter table screening_labels add column signals text",
+        }
+        for column, statement in migrations.items():
+            if column not in existing:
+                conn.execute(statement)
+
+    def _ensure_evidence_record_columns(self, conn: sqlite3.Connection) -> None:
+        existing = _column_names(conn, "evidence_records")
+        migrations = {
+            "quality_label": "alter table evidence_records add column quality_label text not null default 'clean'",
+            "quality_score": "alter table evidence_records add column quality_score real not null default 1.0",
+            "quality_flags": "alter table evidence_records add column quality_flags text not null default '[]'",
+        }
+        for column, statement in migrations.items():
+            if column not in existing:
+                conn.execute(statement)
+
+    def _ensure_pdf_artifact_columns(self, conn: sqlite3.Connection) -> None:
+        existing = _column_names(conn, "pdf_artifacts")
+        migrations = {
+            "parser_name": "alter table pdf_artifacts add column parser_name text",
+            "parser_version": "alter table pdf_artifacts add column parser_version text",
+            "parse_confidence": "alter table pdf_artifacts add column parse_confidence real not null default 0.0",
+            "parse_flags": "alter table pdf_artifacts add column parse_flags text not null default '[]'",
+        }
+        for column, statement in migrations.items():
+            if column not in existing:
+                conn.execute(statement)
+
+    def _ensure_pdf_page_columns(self, conn: sqlite3.Connection) -> None:
+        existing = _column_names(conn, "pdf_pages")
+        migrations = {
+            "parse_confidence": "alter table pdf_pages add column parse_confidence real not null default 1.0",
+            "parse_flags": "alter table pdf_pages add column parse_flags text not null default '[]'",
         }
         for column, statement in migrations.items():
             if column not in existing:
@@ -1067,6 +1153,10 @@ def _pdf_artifact_from_row(row: sqlite3.Row) -> PdfArtifactRecord:
         local_path=row["local_path"],
         status=row["status"],
         reason=row["reason"],
+        parser_name=row["parser_name"],
+        parser_version=row["parser_version"],
+        parse_confidence=float(row["parse_confidence"]),
+        parse_flags=_json_tuple(row["parse_flags"]),
         created_at=row["created_at"],
     )
 
@@ -1077,6 +1167,8 @@ def _pdf_page_from_row(row: sqlite3.Row) -> PdfPageRecord:
         page_number=row["page_number"],
         text=row["text"],
         char_count=row["char_count"],
+        parse_confidence=float(row["parse_confidence"]),
+        parse_flags=_json_tuple(row["parse_flags"]),
         created_at=row["created_at"],
     )
 
@@ -1089,6 +1181,9 @@ def _evidence_record_from_row(row: sqlite3.Row) -> EvidenceRecord:
         page_number=row["page_number"],
         text=row["text"],
         char_count=row["char_count"],
+        quality_label=row["quality_label"],
+        quality_score=float(row["quality_score"]),
+        quality_flags=_json_tuple(row["quality_flags"]),
         created_at=row["created_at"],
     )
 
@@ -1107,6 +1202,18 @@ def _screening_label_from_row(row: sqlite3.Row) -> ScreeningLabelRecord:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+
+
+def _json_tuple(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    return tuple(str(item) for item in parsed if str(item))
 
 
 def _make_id(prefix: str) -> str:

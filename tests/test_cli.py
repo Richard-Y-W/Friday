@@ -57,6 +57,33 @@ class CliTests(unittest.TestCase):
             self.assertIn("research.limit: 250", updated_output)
             self.assertIn("research.deep_read_limit: 10", updated_output)
 
+    def test_llm_status_lists_role_wiring(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            code, output = self.run_cli(["llm", "status"], Path(tmp))
+
+        self.assertEqual(code, 0)
+        self.assertIn("Friday LLM role wiring", output)
+        self.assertIn("composer", output)
+        self.assertIn("claude_cli", output)
+        self.assertIn("verifier", output)
+        self.assertIn("codex_cli", output)
+
+    def test_llm_test_requires_wired_role(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self.run_cli(["settings", "set", "llm.composer_provider", "none"], tmp_path)
+
+            code, output = self.run_cli(["llm", "test", "--role", "composer"], tmp_path)
+
+        self.assertEqual(code, 2)
+        self.assertIn("role 'composer' is not wired to a provider", output)
+
     def test_plain_friday_non_interactive_keeps_help_output(self):
         out = io.StringIO()
         with redirect_stdout(out):
@@ -3202,6 +3229,46 @@ class CliTests(unittest.TestCase):
             self.assertNotIn("unsupported generated result", draft)
             used = json.loads((output_dir / "used_evidence.json").read_text(encoding="utf-8"))
             self.assertEqual(used["used_evidence"][0]["citations"], ["P1 p2", "P2 p2"])
+
+    def test_compose_llm_writes_planner_and_composer_audit_without_real_provider(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_dir = tmp_path / ".friday"
+            package_dir = tmp_path / "writing-package"
+            _write_compose_fixture_package(package_dir)
+            output_dir = tmp_path / "compose-output"
+            self.run_cli(["settings", "set", "llm.composer_provider", "none"], tmp_path)
+            out = io.StringIO()
+
+            with redirect_stdout(out):
+                code = main(
+                    [
+                        "--data-dir",
+                        str(data_dir),
+                        "compose",
+                        "--package",
+                        str(package_dir),
+                        "--section",
+                        "results",
+                        "--llm",
+                        "--output",
+                        str(output_dir),
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            self.assertTrue((output_dir / "discourse_plan.json").exists())
+            self.assertTrue((output_dir / "composer_audit.json").exists())
+            self.assertTrue((output_dir / "verifier_audit.json").exists())
+            audit = json.loads((output_dir / "composer_audit.json").read_text(encoding="utf-8"))
+            self.assertEqual(audit["status"], "fallback")
+            self.assertEqual(audit["reason"], "model_unavailable")
+            verifier_audit = json.loads((output_dir / "verifier_audit.json").read_text(encoding="utf-8"))
+            self.assertEqual(verifier_audit["status"], "skipped")
+            self.assertEqual(verifier_audit["reason"], "composer_not_trusted")
 
     def test_compose_does_not_create_friday_store(self):
         from pathlib import Path

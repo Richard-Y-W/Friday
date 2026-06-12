@@ -20,6 +20,9 @@ def build_claim_support_audit(store: FridayStore, batch_id: str) -> dict[str, An
                 "paper": record["paper"],
                 "page_number": record["page_number"],
                 "text": record["text"],
+                "quality_label": record.get("quality_label"),
+                "quality_score": record.get("quality_score"),
+                "quality_flags": record.get("quality_flags", []),
             }
             if record["page_number"] > 0 and record["citation"]:
                 supported_claims.append({**audit_record, "support_status": "SUPPORTED"})

@@ -83,6 +83,14 @@ def build_cited_evidence_data(store: FridayStore, batch_id: str) -> dict[str, An
     ]
     if blocked_artifacts:
         evidence_gaps.append(f"PDF failures: {len(blocked_artifacts)} blocked or failed PDF attempts.")
+    blocked_evidence_count = sum(
+        1
+        for artifact in stored_artifacts
+        for record in store.list_evidence_records(artifact.artifact_id)
+        if not _is_clean_evidence(record)
+    )
+    if blocked_evidence_count:
+        evidence_gaps.append(f"Evidence quality gate blocked {blocked_evidence_count} extracted fragments.")
     if not evidence_by_type.get("limitation"):
         evidence_gaps.append("No extracted limitation evidence found.")
 
@@ -111,7 +119,7 @@ def _evidence_by_type(
     evidence_by_type: dict[str, list[tuple[PaperReference, EvidenceRecord]]] = {}
     for reference in references:
         for record in store.list_evidence_records(reference.artifact.artifact_id):
-            if not is_reportable_evidence_text(record.text):
+            if not _is_clean_evidence(record):
                 continue
             evidence_by_type.setdefault(record.evidence_type, []).append((reference, record))
     return evidence_by_type
@@ -128,10 +136,17 @@ def _evidence_data_by_type(
                 "page_number": record.page_number,
                 "citation": f"{reference.label} p{record.page_number}",
                 "text": record.text,
+                "quality_label": record.quality_label,
+                "quality_score": record.quality_score,
+                "quality_flags": list(record.quality_flags),
             }
             for reference, record in records
         ]
     return data
+
+
+def _is_clean_evidence(record: EvidenceRecord) -> bool:
+    return record.quality_label == "clean" and is_reportable_evidence_text(record.text)
 
 
 def _paper_reference_data(reference: PaperReference) -> dict[str, Any]:

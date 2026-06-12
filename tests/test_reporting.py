@@ -104,8 +104,17 @@ class ReportingTests(unittest.TestCase):
                 local_path="artifacts/batch_1/paper.pdf",
                 status="stored",
                 reason="pdf_text_extracted",
+                parser_name="fake-parser",
+                parser_version="1",
+                parse_confidence=0.91,
+                parse_flags=("single_parser",),
             )
-            store.add_pdf_pages(artifact.artifact_id, ["page one text", "page two text"])
+            store.add_pdf_pages(
+                artifact.artifact_id,
+                ["page one text", "page two text"],
+                page_confidences=[0.95, 0.87],
+                page_flags=[(), ("wide_spacing",)],
+            )
             store.add_evidence_records(
                 artifact.artifact_id,
                 [
@@ -122,11 +131,19 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Parsed PDFs:", report)
             self.assertIn("stored: https://arxiv.org/pdf/2401.12345", report)
             self.assertIn("pages=2", report)
+            self.assertIn("parser=fake-parser", report)
+            self.assertIn("confidence=0.91", report)
             self.assertIn("Parsed page-level paper text is stored.", report)
             self.assertIn("Extracted evidence:", report)
             self.assertIn("result p2: The model achieved an AUROC of 0.91.", report)
             self.assertIn("Cited Evidence Report", report)
             self.assertIn("- [P1 p2] The model achieved an AUROC of 0.91.", report)
+
+            data = render_batch_report_json(store, batch.batch_id)
+            self.assertEqual(data["pdf_artifacts"][0]["parser_name"], "fake-parser")
+            self.assertEqual(data["pdf_artifacts"][0]["parser_version"], "1")
+            self.assertEqual(data["pdf_artifacts"][0]["parse_confidence"], 0.91)
+            self.assertEqual(data["pdf_artifacts"][0]["parse_flags"], ["single_parser"])
 
     def test_scan_report_exports_markdown_and_json(self):
         with TemporaryDirectory() as tmp:
@@ -213,6 +230,68 @@ class ReportingTests(unittest.TestCase):
                 data["cited_evidence"]["evidence"]["result"][0]["citation"],
                 "P1 p2",
             )
+
+    def test_batch_report_exports_evidence_quality_audit(self):
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
+            candidate = Candidate(
+                provider="openalex",
+                title="Direct AMR prediction from MALDI-TOF spectra",
+                source_for_gate="10.1038/example",
+                doi="10.1038/example",
+                year=2024,
+            )
+            store.add_batch_item(
+                batch.batch_id,
+                candidate.source_for_gate,
+                evaluate_source(candidate.source_for_gate),
+                candidate=candidate,
+            )
+            artifact = store.add_pdf_artifact(
+                batch.batch_id,
+                source=candidate.source_for_gate,
+                pdf_url="https://www.nature.com/articles/example.pdf",
+                final_url="https://www.nature.com/articles/example.pdf",
+                sha256="f" * 64,
+                byte_count=456,
+                content_type="application/pdf",
+                local_path="artifacts/batch_1/paper.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+            )
+            store.add_pdf_pages(artifact.artifact_id, ["page one"])
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="result",
+                        text="The model achieved an AUROC of 0.91.",
+                        page_number=1,
+                    ),
+                    EvidenceItem(
+                        evidence_type="method",
+                        text="Defense University of Malaysia), searches were carried out using Unfortunately, within 50 years.",
+                        page_number=1,
+                        quality_label="blocked",
+                        quality_score=0.2,
+                        quality_flags=("column_stitching",),
+                    ),
+                ],
+            )
+
+            markdown = render_batch_report_markdown(store, batch.batch_id)
+            data = render_batch_report_json(store, batch.batch_id)
+
+            self.assertIn("## Evidence Quality", markdown)
+            self.assertIn("- Accepted evidence: 1", markdown)
+            self.assertIn("- Blocked evidence: 1", markdown)
+            self.assertIn("- column_stitching: 1", markdown)
+            self.assertEqual(data["pdf_artifacts"][0]["accepted_evidence_count"], 1)
+            self.assertEqual(data["pdf_artifacts"][0]["blocked_evidence_count"], 1)
+            self.assertEqual(data["evidence_status"]["quality_summary"]["blocked_by_flag"]["column_stitching"], 1)
+            self.assertEqual(len(data["cited_evidence"]["evidence"]["result"]), 1)
+            self.assertEqual(data["cited_evidence"]["evidence"]["method"], [])
 
     def test_batch_report_exports_screening_label_audit(self):
         with TemporaryDirectory() as tmp:

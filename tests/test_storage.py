@@ -342,6 +342,48 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(loaded[0].text, "The model achieved an AUROC of 0.91.")
             self.assertEqual(loaded[0].page_number, 3)
             self.assertEqual(loaded[0].char_count, 36)
+            self.assertEqual(loaded[0].quality_label, "clean")
+            self.assertEqual(loaded[0].quality_score, 1.0)
+            self.assertEqual(loaded[0].quality_flags, ())
+
+    def test_persists_blocked_evidence_quality_metadata(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="test query", limit=1, mode="query")
+            artifact = store.add_pdf_artifact(
+                batch.batch_id,
+                source="https://arxiv.org/pdf/2401.12345",
+                pdf_url="https://arxiv.org/pdf/2401.12345",
+                final_url="https://arxiv.org/pdf/2401.12345",
+                sha256="d" * 64,
+                byte_count=123,
+                content_type="application/pdf",
+                local_path="artifacts/batch_1/paper.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+            )
+
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="method",
+                        text="Defense University of Malaysia), searches were carried out using Unfortunately, within 50 years.",
+                        page_number=1,
+                        quality_label="blocked",
+                        quality_score=0.2,
+                        quality_flags=("column_stitching",),
+                    )
+                ],
+            )
+            loaded = store.list_evidence_records(artifact.artifact_id)
+
+            self.assertEqual(loaded[0].quality_label, "blocked")
+            self.assertEqual(loaded[0].quality_score, 0.2)
+            self.assertEqual(loaded[0].quality_flags, ("column_stitching",))
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from friday.source_policy import evaluate_source
 from friday.storage import FridayStore
 from friday.writing_copilot import (
     build_writing_audit_summary,
+    build_writing_package_files,
     build_writing_payload,
     render_writing_markdown,
 )
@@ -46,6 +47,33 @@ class WritingCopilotTests(unittest.TestCase):
             self.assertIn("Result evidence: The model achieved an AUROC of 0.91. [P1 p2]", markdown)
             self.assertIn("Limitation evidence: The cohort was from a single hospital. [P1 p3]", markdown)
             self.assertIn("This draft uses only page-anchored extracted evidence.", markdown)
+
+    def test_writing_payload_exports_evidence_quality_audit(self):
+        with TemporaryDirectory() as tmp:
+            store, batch_id = _store_with_evidence(Path(tmp))
+            artifact = store.list_pdf_artifacts(batch_id)[0]
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="method",
+                        text="Defense University of Malaysia), searches were carried out using Unfortunately, within 50 years.",
+                        page_number=4,
+                        quality_label="blocked",
+                        quality_score=0.2,
+                        quality_flags=("column_stitching",),
+                    )
+                ],
+            )
+            report_data = render_batch_report_json(store, batch_id)
+
+            payload = build_writing_payload(report_data, mode="literature-review")
+            package = build_writing_package_files(payload)
+
+            self.assertEqual(payload["source_report"]["evidence_quality"]["blocked_evidence_count"], 1)
+            self.assertIn("Evidence Quality", package["report.md"])
+            self.assertIn("Blocked evidence: 1", package["report.md"])
+            self.assertNotIn("Defense University", package["draft.md"])
 
     def test_outline_and_limitations_surface_gaps_when_no_evidence_exists(self):
         with TemporaryDirectory() as tmp:

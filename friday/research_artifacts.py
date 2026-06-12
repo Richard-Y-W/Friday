@@ -7,9 +7,10 @@ import subprocess
 from typing import Any
 
 from friday import __version__
+from friday.evidence import is_reportable_evidence_text
 from friday.query_planning import plan_query, render_acronym_expansions
 from friday.screening import LlmReviewQueueItem, build_screening_label_summary
-from friday.storage import FridayStore
+from friday.storage import EvidenceRecord, FridayStore
 
 
 STOCHASTICITY_DECLARATION = (
@@ -68,6 +69,8 @@ def build_batch_passport(
             "pdf_attempt_count": len(artifacts),
             "stored_pdf_count": len([artifact for artifact in artifacts if artifact.status == "stored"]),
             "failed_pdf_count": len([artifact for artifact in artifacts if artifact.status != "stored"]),
+            "parser_quality": _parser_quality_summary(artifacts),
+            "evidence_quality": _evidence_quality_summary(store, batch_id),
         },
         "screening_labels": build_screening_label_summary(items, labels),
         "llm_review_queue": build_llm_review_queue_artifact(llm_review_queue or []),
@@ -128,6 +131,28 @@ def build_rejection_log(store: FridayStore, batch_id: str) -> dict[str, Any]:
                     "title": None,
                     "artifact_id": artifact.artifact_id,
                     "status": artifact.status,
+                    "parser_name": artifact.parser_name,
+                    "parser_version": artifact.parser_version,
+                    "parse_confidence": artifact.parse_confidence,
+                    "parse_flags": list(artifact.parse_flags),
+                }
+            )
+            continue
+        for record in store.list_evidence_records(artifact.artifact_id):
+            if _is_clean_evidence(record):
+                continue
+            rejected.append(
+                {
+                    "source": artifact.source,
+                    "normalized": artifact.final_url or artifact.pdf_url or artifact.source,
+                    "stage": "evidence_quality",
+                    "reason": ",".join(record.quality_flags) or record.quality_label,
+                    "domain": None,
+                    "title": None,
+                    "artifact_id": artifact.artifact_id,
+                    "evidence_id": record.evidence_id,
+                    "status": record.quality_label,
+                    "page_number": record.page_number,
                 }
             )
 
@@ -141,6 +166,7 @@ def build_rejection_log(store: FridayStore, batch_id: str) -> dict[str, Any]:
             "rejected": len(rejected),
             "source_gate": len([item for item in rejected if item["stage"] == "source_gate"]),
             "pdf_ingestion": len([item for item in rejected if item["stage"] == "pdf_ingestion"]),
+            "evidence_quality": len([item for item in rejected if item["stage"] == "evidence_quality"]),
         },
         "rejected": rejected,
     }
@@ -205,6 +231,8 @@ def build_research_run_summary(
             "pdf_attempt_count": len(artifacts),
             "stored_pdf_count": len([artifact for artifact in artifacts if artifact.status == "stored"]),
             "failed_pdf_count": len([artifact for artifact in artifacts if artifact.status != "stored"]),
+            "parser_quality": _parser_quality_summary(artifacts),
+            "evidence_quality": _evidence_quality_summary(store, batch.batch_id) if batch else _empty_evidence_quality_summary(),
         },
         "screening_labels": build_screening_label_summary(items, labels),
         "llm_review_queue": build_llm_review_queue_artifact(llm_review_queue or []),
@@ -250,6 +278,74 @@ def build_llm_review_queue_artifact(queue: list[LlmReviewQueueItem]) -> dict[str
             for rank, entry in enumerate(queue, start=1)
         ],
     }
+
+
+def _evidence_quality_summary(store: FridayStore, batch_id: str) -> dict[str, Any]:
+    records = [
+        record
+        for artifact in store.list_pdf_artifacts(batch_id)
+        for record in store.list_evidence_records(artifact.artifact_id)
+    ]
+    accepted = sum(1 for record in records if _is_clean_evidence(record))
+    blocked_by_flag: dict[str, int] = {}
+    blocked = 0
+    suspect = 0
+    for record in records:
+        if _is_clean_evidence(record):
+            continue
+        if record.quality_label == "suspect":
+            suspect += 1
+        else:
+            blocked += 1
+        for flag in record.quality_flags or ("legacy_quality_filter",):
+            blocked_by_flag[flag] = blocked_by_flag.get(flag, 0) + 1
+    return {
+        "accepted_evidence_count": accepted,
+        "blocked_evidence_count": blocked,
+        "suspect_evidence_count": suspect,
+        "blocked_by_flag": blocked_by_flag,
+    }
+
+
+def _parser_quality_summary(artifacts: list[Any]) -> dict[str, Any]:
+    parser_rows = [
+        {
+            "artifact_id": artifact.artifact_id,
+            "source": artifact.source,
+            "status": artifact.status,
+            "parser_name": artifact.parser_name,
+            "parser_version": artifact.parser_version,
+            "parse_confidence": artifact.parse_confidence,
+            "parse_flags": list(artifact.parse_flags),
+        }
+        for artifact in artifacts
+        if artifact.parser_name
+    ]
+    stored = [row for row in parser_rows if row["status"] == "stored"]
+    low_confidence = [
+        row
+        for row in parser_rows
+        if row["parse_confidence"] < 0.6 or "low_confidence" in row["parse_flags"]
+    ]
+    return {
+        "parser_attempt_count": len(parser_rows),
+        "stored_pdf_count": len(stored),
+        "low_confidence_count": len(low_confidence),
+        "parsers": parser_rows,
+    }
+
+
+def _empty_evidence_quality_summary() -> dict[str, Any]:
+    return {
+        "accepted_evidence_count": 0,
+        "blocked_evidence_count": 0,
+        "suspect_evidence_count": 0,
+        "blocked_by_flag": {},
+    }
+
+
+def _is_clean_evidence(record: EvidenceRecord) -> bool:
+    return record.quality_label == "clean" and is_reportable_evidence_text(record.text)
 
 
 def write_json_artifact(path: Path, data: dict[str, Any]) -> None:

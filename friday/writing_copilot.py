@@ -47,6 +47,9 @@ EVIDENCE_TABLE_COLUMNS = (
     "citation",
     "page_number",
     "text",
+    "quality_label",
+    "quality_score",
+    "quality_flags",
     "paper_title",
     "year",
     "journal",
@@ -61,6 +64,7 @@ def build_writing_payload(report_data: dict[str, Any], *, mode: str) -> dict[str
     audit = report_data.get("claim_support_audit") or {}
     cited = report_data.get("cited_evidence") or {}
     batch = report_data.get("batch") or {}
+    evidence_status = report_data.get("evidence_status") or {}
     screening_labels = report_data.get("screening_labels") or _empty_screening_label_summary()
     claims = list(audit.get("supported_claims") or [])
     material_gaps = _material_gaps(audit, cited)
@@ -86,6 +90,15 @@ def build_writing_payload(report_data: dict[str, Any], *, mode: str) -> dict[str
             "blocked_count": batch.get("blocked_count"),
             "deep_read_count": batch.get("deep_read_count"),
             "screening_label_counts": screening_labels.get("counts", {}),
+            "evidence_quality": evidence_status.get(
+                "quality_summary",
+                {
+                    "accepted_evidence_count": len(claims),
+                    "blocked_evidence_count": 0,
+                    "suspect_evidence_count": 0,
+                    "blocked_by_flag": {},
+                },
+            ),
         },
         "screening_labels": screening_labels,
         "claims": claims,
@@ -241,6 +254,22 @@ def render_evidence_report_markdown(payload: dict[str, Any]) -> str:
             f"- Deep-read PDFs: {source.get('deep_read_count', 0) or 0}",
             "",
             "See `evidence_table.csv` for the full page-anchored evidence table.",
+            "",
+            "## Evidence Quality",
+            "",
+        ]
+    )
+    quality = source.get("evidence_quality") or {}
+    lines.append(f"- Accepted evidence: {quality.get('accepted_evidence_count', len(payload.get('claims', []))) or 0}")
+    lines.append(f"- Blocked evidence: {quality.get('blocked_evidence_count', 0) or 0}")
+    lines.append(f"- Suspect evidence: {quality.get('suspect_evidence_count', 0) or 0}")
+    blocked_by_flag = quality.get("blocked_by_flag") or {}
+    if blocked_by_flag:
+        lines.append("- Blocked by flag:")
+        for flag, count in sorted(blocked_by_flag.items()):
+            lines.append(f"  - {flag}: {count}")
+    lines.extend(
+        [
             "",
             "## Citation Audit",
             "",
@@ -602,6 +631,9 @@ def _evidence_table_row(
         "citation": claim.get("citation"),
         "page_number": claim.get("page_number"),
         "text": claim.get("text"),
+        "quality_label": claim.get("quality_label"),
+        "quality_score": claim.get("quality_score"),
+        "quality_flags": ",".join(claim.get("quality_flags") or []),
         "paper_title": reference.get("title"),
         "year": reference.get("year"),
         "journal": reference.get("journal"),

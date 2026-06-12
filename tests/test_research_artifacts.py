@@ -38,6 +38,22 @@ class ResearchArtifactTests(unittest.TestCase):
                 "relevant",
                 note="human include",
             )
+            store.add_pdf_artifact(
+                batch.batch_id,
+                source=candidate.source_for_gate,
+                pdf_url="https://www.nature.com/articles/example.pdf",
+                final_url="https://www.nature.com/articles/example.pdf",
+                sha256="a" * 64,
+                byte_count=123,
+                content_type="application/pdf",
+                local_path="artifacts/example.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+                parser_name="pdftotext-layout",
+                parser_version="poppler",
+                parse_confidence=0.82,
+                parse_flags=("single_parser",),
+            )
 
             passport = build_batch_passport(store, batch.batch_id, data_dir=Path(tmp) / ".friday")
 
@@ -51,6 +67,9 @@ class ResearchArtifactTests(unittest.TestCase):
             self.assertEqual(passport["screening_labels"]["counts"]["relevant"], 1)
             self.assertEqual(passport["screening_labels"]["labels"][0]["source"], candidate.source_for_gate)
             self.assertEqual(passport["screening_labels"]["labels"][0]["note"], "human include")
+            self.assertEqual(passport["artifacts"]["parser_quality"]["stored_pdf_count"], 1)
+            self.assertEqual(passport["artifacts"]["parser_quality"]["parsers"][0]["parser_name"], "pdftotext-layout")
+            self.assertEqual(passport["artifacts"]["parser_quality"]["parsers"][0]["parse_confidence"], 0.82)
 
     def test_rejection_log_records_blocked_sources_and_failed_pdfs(self):
         with TemporaryDirectory() as tmp:
@@ -71,6 +90,10 @@ class ResearchArtifactTests(unittest.TestCase):
                 local_path=None,
                 status="blocked",
                 reason="no_safe_pdf_url",
+                parser_name="pdftotext-layout",
+                parser_version="poppler",
+                parse_confidence=0.2,
+                parse_flags=("low_confidence",),
             )
 
             rejection_log = build_rejection_log(store, batch.batch_id)
@@ -78,6 +101,49 @@ class ResearchArtifactTests(unittest.TestCase):
             reasons = {(item["source"], item["stage"], item["reason"]) for item in rejection_log["rejected"]}
             self.assertIn((blocked_source, "source_gate", "blocked_domain"), reasons)
             self.assertIn((safe_source, "pdf_ingestion", "no_safe_pdf_url"), reasons)
+            pdf_rejection = [item for item in rejection_log["rejected"] if item["stage"] == "pdf_ingestion"][0]
+            self.assertEqual(pdf_rejection["parser_name"], "pdftotext-layout")
+            self.assertEqual(pdf_rejection["parse_confidence"], 0.2)
+            self.assertEqual(pdf_rejection["parse_flags"], ["low_confidence"])
+
+    def test_rejection_log_and_passport_record_evidence_quality_blocks(self):
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=10, mode="query")
+            source = "10.1038/example"
+            store.add_batch_item(batch.batch_id, source, evaluate_source(source))
+            artifact = store.add_pdf_artifact(
+                batch.batch_id,
+                source=source,
+                pdf_url="https://www.nature.com/articles/example.pdf",
+                final_url="https://www.nature.com/articles/example.pdf",
+                sha256="c" * 64,
+                byte_count=123,
+                content_type="application/pdf",
+                local_path="artifacts/example.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+            )
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="method",
+                        text="Defense University of Malaysia), searches were carried out using Unfortunately, within 50 years.",
+                        page_number=1,
+                        quality_label="blocked",
+                        quality_score=0.2,
+                        quality_flags=("column_stitching",),
+                    )
+                ],
+            )
+
+            rejection_log = build_rejection_log(store, batch.batch_id)
+            passport = build_batch_passport(store, batch.batch_id)
+
+            self.assertEqual(rejection_log["counts"]["evidence_quality"], 1)
+            self.assertEqual(rejection_log["rejected"][0]["stage"], "evidence_quality")
+            self.assertEqual(passport["artifacts"]["evidence_quality"]["blocked_by_flag"]["column_stitching"], 1)
 
     def test_research_run_summary_records_status_counts_and_policy(self):
         with TemporaryDirectory() as tmp:

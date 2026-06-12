@@ -6,7 +6,7 @@ from friday.cited_report import build_cited_evidence_data, render_cited_evidence
 from friday.claim_audit import build_claim_support_audit
 from friday.evidence import is_reportable_evidence_text
 from friday.screening import build_screening_label_summary
-from friday.storage import BatchItemRecord, FridayStore, PdfArtifactRecord
+from friday.storage import BatchItemRecord, EvidenceRecord, FridayStore, PdfArtifactRecord
 
 
 def render_scan_report(store: FridayStore, scan_id: str) -> str:
@@ -171,9 +171,11 @@ def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
     lines.extend(["", "## Parsed PDFs", ""])
     if data["pdf_artifacts"]:
         for artifact in data["pdf_artifacts"]:
+            parser = _render_parser_summary_data(artifact)
             lines.append(
                 f"- {artifact['status']}: {artifact['pdf_url'] or artifact['source']} "
-                f"(reason={artifact['reason']}; pages={artifact['page_count']}; bytes={artifact['byte_count'] or 0})"
+                f"(reason={artifact['reason']}; pages={artifact['page_count']}; "
+                f"bytes={artifact['byte_count'] or 0}{parser})"
             )
     else:
         lines.append("- No parsed paper evidence is stored yet in this CLI slice.")
@@ -198,6 +200,16 @@ def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
 
     lines.extend(["", "### Evidence Gaps", ""])
     lines.extend(f"- {gap}" for gap in cited["evidence_gaps"])
+
+    quality = data["evidence_status"]["quality_summary"]
+    lines.extend(["", "## Evidence Quality", ""])
+    lines.append(f"- Accepted evidence: {quality['accepted_evidence_count']}")
+    lines.append(f"- Blocked evidence: {quality['blocked_evidence_count']}")
+    lines.append(f"- Suspect evidence: {quality['suspect_evidence_count']}")
+    if quality["blocked_by_flag"]:
+        lines.append("- Blocked by flag:")
+        for flag, count in sorted(quality["blocked_by_flag"].items()):
+            lines.append(f"  - {flag}: {count}")
 
     audit = data["claim_support_audit"]
     lines.extend(["", "## Claim Support Audit", ""])
@@ -304,11 +316,8 @@ def _batch_item_data(item: BatchItemRecord, screening_label: dict[str, object] |
 
 
 def _pdf_artifact_data(store: FridayStore, artifact: PdfArtifactRecord) -> dict[str, Any]:
-    evidence = [
-        record
-        for record in store.list_evidence_records(artifact.artifact_id)
-        if is_reportable_evidence_text(record.text)
-    ]
+    records = store.list_evidence_records(artifact.artifact_id)
+    quality = _evidence_quality_summary(records)
     return {
         "artifact_id": artifact.artifact_id,
         "batch_id": artifact.batch_id,
@@ -321,9 +330,17 @@ def _pdf_artifact_data(store: FridayStore, artifact: PdfArtifactRecord) -> dict[
         "local_path": artifact.local_path,
         "status": artifact.status,
         "reason": artifact.reason,
+        "parser_name": artifact.parser_name,
+        "parser_version": artifact.parser_version,
+        "parse_confidence": artifact.parse_confidence,
+        "parse_flags": list(artifact.parse_flags),
         "created_at": artifact.created_at,
         "page_count": len(store.list_pdf_pages(artifact.artifact_id)),
-        "evidence_count": len(evidence),
+        "evidence_count": quality["accepted_evidence_count"],
+        "accepted_evidence_count": quality["accepted_evidence_count"],
+        "blocked_evidence_count": quality["blocked_evidence_count"],
+        "suspect_evidence_count": quality["suspect_evidence_count"],
+        "blocked_by_flag": quality["blocked_by_flag"],
     }
 
 
@@ -334,11 +351,13 @@ def _evidence_status_data(
     stored_count = 0
     evidence_preview = []
     evidence_type_counts: dict[str, int] = {}
+    all_records: list[EvidenceRecord] = []
     for artifact in artifacts:
         if artifact.status == "stored":
             stored_count += 1
         for record in store.list_evidence_records(artifact.artifact_id):
-            if not is_reportable_evidence_text(record.text):
+            all_records.append(record)
+            if not _is_clean_evidence_record(record):
                 continue
             if evidence_type_counts.get(record.evidence_type, 0) >= 2:
                 continue
@@ -362,6 +381,7 @@ def _evidence_status_data(
         "stored_pdf_count": stored_count,
         "message": message,
         "evidence_preview": evidence_preview[:12],
+        "quality_summary": _evidence_quality_summary(all_records),
     }
 
 
@@ -377,11 +397,24 @@ def _render_evidence_status_from_data(data: dict[str, Any]) -> list[str]:
 
     lines = ["", "Parsed PDFs:"]
     for artifact in artifacts:
+        parser = _render_parser_summary_data(artifact)
         lines.append(
             f"- {artifact['status']}: {artifact['pdf_url'] or artifact['source']}; "
-            f"reason={artifact['reason']}; pages={artifact['page_count']}; bytes={artifact['byte_count'] or 0}"
+            f"reason={artifact['reason']}; pages={artifact['page_count']}; "
+            f"bytes={artifact['byte_count'] or 0}{parser}"
         )
     lines.extend(["", "Evidence status:", data["evidence_status"]["message"]])
+    quality = data["evidence_status"]["quality_summary"]
+    lines.extend(
+        [
+            (
+                "Evidence quality: "
+                f"accepted={quality['accepted_evidence_count']} "
+                f"blocked={quality['blocked_evidence_count']} "
+                f"suspect={quality['suspect_evidence_count']}"
+            )
+        ]
+    )
     preview = data["evidence_status"]["evidence_preview"]
     if preview:
         lines.extend(["", "Extracted evidence:"])
@@ -390,6 +423,46 @@ def _render_evidence_status_from_data(data: dict[str, Any]) -> list[str]:
             for item in preview
         )
     return lines
+
+
+def _render_parser_summary_data(artifact: dict[str, Any]) -> str:
+    if not artifact.get("parser_name"):
+        return ""
+    suffix = (
+        f"; parser={artifact['parser_name']}"
+        f"; confidence={artifact['parse_confidence']:.2f}"
+    )
+    if artifact.get("parse_flags"):
+        suffix += f"; flags={','.join(artifact['parse_flags'])}"
+    return suffix
+
+
+def _is_clean_evidence_record(record: EvidenceRecord) -> bool:
+    return record.quality_label == "clean" and is_reportable_evidence_text(record.text)
+
+
+def _evidence_quality_summary(records: list[EvidenceRecord]) -> dict[str, Any]:
+    accepted_count = 0
+    blocked_count = 0
+    suspect_count = 0
+    blocked_by_flag: dict[str, int] = {}
+    for record in records:
+        if _is_clean_evidence_record(record):
+            accepted_count += 1
+            continue
+        if record.quality_label == "suspect":
+            suspect_count += 1
+        else:
+            blocked_count += 1
+        flags = record.quality_flags or ("legacy_quality_filter",)
+        for flag in flags:
+            blocked_by_flag[flag] = blocked_by_flag.get(flag, 0) + 1
+    return {
+        "accepted_evidence_count": accepted_count,
+        "blocked_evidence_count": blocked_count,
+        "suspect_evidence_count": suspect_count,
+        "blocked_by_flag": blocked_by_flag,
+    }
 
 
 def _render_screening_labels_from_data(data: dict[str, Any]) -> list[str]:

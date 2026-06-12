@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from friday.discovery import Candidate
+from friday.pdf_parser import ParsedPdfPage, PdfParseResult
 from friday.pdf_ingestion import DownloadedPdf, deep_read_source, resolve_candidate_pdf_url
 from friday.source_policy import evaluate_source
 from friday.storage import FridayStore
@@ -385,6 +386,158 @@ class PdfIngestionTests(unittest.TestCase):
             self.assertEqual([item.evidence_type for item in evidence], ["method", "dataset_population", "result"])
             self.assertEqual(evidence[0].page_number, 1)
             self.assertIn("MALDI-TOF spectra", evidence[0].text)
+
+    def test_deep_read_source_applies_document_parse_quality_gate(self):
+        def fake_downloader(url):
+            return DownloadedPdf(
+                requested_url=url,
+                final_url=url,
+                content_type="application/pdf",
+                content=b"%PDF-1.7\nfake test pdf\n%%EOF",
+            )
+
+        def fake_extractor(path):
+            noisy_page = "Methods\n" + " ".join(
+                "Articles seTo design suitable local and global interventions, it is lected for full text review were obtained using PubMed."
+                for _ in range(20)
+            )
+            return [
+                noisy_page,
+                "Methods\nUsing bacterial genomes and essential 203.",
+                "Methods\nThis review used a structured search strategy across PubMed, EMBASE, and Cochrane databases.",
+            ]
+
+        with TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
+            batch = store.create_batch(query="test query", limit=1, mode="query")
+            source = "https://arxiv.org/pdf/2401.12345v1"
+            store.add_batch_item(batch.batch_id, source, evaluate_source(source))
+
+            result = deep_read_source(
+                store,
+                data_dir,
+                batch.batch_id,
+                source,
+                downloader=fake_downloader,
+                extractor=fake_extractor,
+            )
+
+            artifacts = store.list_pdf_artifacts(batch.batch_id)
+            evidence = store.list_evidence_records(artifacts[0].artifact_id)
+            clean = [item for item in evidence if item.quality_label == "clean"]
+            blocked = [item for item in evidence if item.quality_label == "blocked"]
+
+            self.assertEqual(result.status, "stored")
+            self.assertEqual(
+                [item.text for item in clean],
+                ["This review used a structured search strategy across PubMed, EMBASE, and Cochrane databases"],
+            )
+            self.assertTrue(any("document_parse_quality" in item.quality_flags for item in blocked))
+
+    def test_deep_read_source_stores_parser_confidence_metadata(self):
+        def fake_downloader(url):
+            return DownloadedPdf(
+                requested_url=url,
+                final_url=url,
+                content_type="application/pdf",
+                content=b"%PDF-1.7\nfake test pdf\n%%EOF",
+            )
+
+        def fake_parser(path):
+            return PdfParseResult(
+                parser_name="fake-parser",
+                parser_version="1",
+                pages=[
+                    ParsedPdfPage(
+                        page_number=1,
+                        text="Methods\nWe used MALDI-TOF spectra to train a classifier.",
+                        confidence=0.93,
+                        flags=("clean_layout",),
+                    )
+                ],
+                confidence=0.91,
+                flags=("single_parser",),
+            )
+
+        with TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
+            batch = store.create_batch(query="test query", limit=1, mode="query")
+            source = "https://arxiv.org/pdf/2401.12345v1"
+            store.add_batch_item(batch.batch_id, source, evaluate_source(source))
+
+            result = deep_read_source(
+                store,
+                data_dir,
+                batch.batch_id,
+                source,
+                downloader=fake_downloader,
+                parser=fake_parser,
+            )
+
+            artifact = store.list_pdf_artifacts(batch.batch_id)[0]
+            pages = store.list_pdf_pages(artifact.artifact_id)
+
+            self.assertEqual(result.status, "stored")
+            self.assertEqual(artifact.parser_name, "fake-parser")
+            self.assertEqual(artifact.parser_version, "1")
+            self.assertAlmostEqual(artifact.parse_confidence, 0.91)
+            self.assertEqual(artifact.parse_flags, ("single_parser",))
+            self.assertAlmostEqual(pages[0].parse_confidence, 0.93)
+            self.assertEqual(pages[0].parse_flags, ("clean_layout",))
+
+    def test_deep_read_source_blocks_low_confidence_parser_result(self):
+        def fake_downloader(url):
+            return DownloadedPdf(
+                requested_url=url,
+                final_url=url,
+                content_type="application/pdf",
+                content=b"%PDF-1.7\nfake test pdf\n%%EOF",
+            )
+
+        def fake_parser(path):
+            return PdfParseResult(
+                parser_name="fake-parser",
+                parser_version="1",
+                pages=[
+                    ParsedPdfPage(
+                        page_number=1,
+                        text="Articles seTo design suitable local and global interventions.",
+                        confidence=0.2,
+                        flags=("column_stitching",),
+                    )
+                ],
+                confidence=0.2,
+                flags=("low_confidence", "column_stitching"),
+            )
+
+        with TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / ".friday"
+            store = FridayStore(data_dir / "friday.db")
+            batch = store.create_batch(query="test query", limit=1, mode="query")
+            source = "https://arxiv.org/pdf/2401.12345v1"
+            store.add_batch_item(batch.batch_id, source, evaluate_source(source))
+
+            result = deep_read_source(
+                store,
+                data_dir,
+                batch.batch_id,
+                source,
+                downloader=fake_downloader,
+                parser=fake_parser,
+            )
+
+            loaded = store.get_batch(batch.batch_id)
+            artifact = store.list_pdf_artifacts(batch.batch_id)[0]
+
+            self.assertEqual(result.status, "blocked")
+            self.assertEqual(result.reason, "low_parse_confidence")
+            self.assertEqual(loaded.deep_read_count, 0)
+            self.assertEqual(artifact.status, "blocked")
+            self.assertEqual(artifact.parser_name, "fake-parser")
+            self.assertAlmostEqual(artifact.parse_confidence, 0.2)
+            self.assertEqual(artifact.parse_flags, ("low_confidence", "column_stitching"))
 
     def test_deep_read_source_stores_cleaned_pages_before_extracting_evidence(self):
         def fake_downloader(url):
