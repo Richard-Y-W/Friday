@@ -11,6 +11,7 @@ from friday.screening import (
 )
 from friday.source_policy import evaluate_source
 from friday.storage import FridayStore
+from friday.topic_planning import plan_topic
 
 
 class ScreeningTests(unittest.TestCase):
@@ -191,6 +192,75 @@ class ScreeningTests(unittest.TestCase):
             )
 
             self.assertEqual(ranked[0].source, human_maybe.source_for_gate)
+
+    def test_deep_read_ranking_uses_topic_curation(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=3, mode="query")
+            focused = Candidate(
+                provider="openalex",
+                title="MALDI-TOF antibiotic resistance detection",
+                source_for_gate="10.1000/focused",
+                abstract="MALDI-TOF spectra for antibiotic resistance detection.",
+                relevance_score=70,
+            )
+            broad = Candidate(
+                provider="openalex",
+                title="Antimicrobial resistance surveillance",
+                source_for_gate="10.1000/broad",
+                abstract="Antimicrobial resistance surveillance across clinical isolates.",
+                relevance_score=100,
+            )
+            for candidate in [broad, focused]:
+                store.add_batch_item(
+                    batch.batch_id,
+                    candidate.source_for_gate,
+                    evaluate_source(candidate.source_for_gate),
+                    candidate=candidate,
+                )
+
+            ranked = rank_deep_read_items(
+                store.list_batch_items(batch.batch_id),
+                store.list_screening_labels(batch.batch_id),
+                min_relevance=0,
+                topic_profile=plan_topic("MALDI AMR"),
+            )
+
+            self.assertEqual([item.source for item in ranked], [focused.source_for_gate])
+
+    def test_human_relevant_label_can_override_topic_curation(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=1, mode="query")
+            broad = Candidate(
+                provider="openalex",
+                title="Antimicrobial resistance surveillance",
+                source_for_gate="10.1000/broad-human",
+                abstract="Antimicrobial resistance surveillance across clinical isolates.",
+                relevance_score=100,
+            )
+            store.add_batch_item(
+                batch.batch_id,
+                broad.source_for_gate,
+                evaluate_source(broad.source_for_gate),
+                candidate=broad,
+            )
+            store.set_screening_label(batch.batch_id, broad.source_for_gate, "relevant")
+
+            ranked = rank_deep_read_items(
+                store.list_batch_items(batch.batch_id),
+                store.list_screening_labels(batch.batch_id),
+                min_relevance=0,
+                topic_profile=plan_topic("MALDI AMR"),
+            )
+
+            self.assertEqual([item.source for item in ranked], [broad.source_for_gate])
 
     def test_auto_label_batch_items_classifies_metadata_without_overwriting_human_labels(self):
         from pathlib import Path

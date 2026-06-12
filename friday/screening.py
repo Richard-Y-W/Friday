@@ -13,6 +13,7 @@ from friday.llm_labeling import (
 )
 from friday.query_planning import plan_query
 from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES, ScreeningLabelRecord
+from friday.topic_planning import TopicProfile, evaluate_topic_curation
 
 
 STOP_WORDS = {
@@ -360,28 +361,37 @@ def rank_deep_read_items(
     labels: list[ScreeningLabelRecord],
     *,
     min_relevance: int,
+    topic_profile: TopicProfile | None = None,
 ) -> list[BatchItemRecord]:
     labels_by_normalized = {label.normalized: label for label in labels}
-    eligible: list[tuple[int, BatchItemRecord]] = []
+    eligible: list[tuple[int, int, BatchItemRecord]] = []
     for index, item in enumerate(items):
         if not item.allowed:
             continue
         label_record = labels_by_normalized.get(item.normalized)
         label = label_record.label if label_record else None
+        is_human_relevant = bool(label_record and label_record.label_source == "human" and label == "relevant")
         if label == "irrelevant":
             continue
         score = item.relevance_score or 0
         if label != "relevant" and min_relevance > 0 and score < min_relevance:
             continue
-        eligible.append((index, item))
+        topic_score = 0
+        if topic_profile is not None:
+            topic_decision = evaluate_topic_curation(item, topic_profile)
+            topic_score = topic_decision.curation_score
+            if not topic_decision.eligible_for_deep_read and not is_human_relevant:
+                continue
+        eligible.append((index, topic_score, item))
 
     return [
         item
-        for _, item in sorted(
+        for _, _, item in sorted(
             eligible,
             key=lambda indexed: (
-                _label_bucket(labels_by_normalized.get(indexed[1].normalized)),
-                -(indexed[1].relevance_score or 0),
+                _label_bucket(labels_by_normalized.get(indexed[2].normalized)),
+                -indexed[1],
+                -(indexed[2].relevance_score or 0),
                 indexed[0],
             ),
         )

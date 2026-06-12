@@ -70,6 +70,9 @@ class ResearchArtifactTests(unittest.TestCase):
             self.assertEqual(passport["artifacts"]["parser_quality"]["stored_pdf_count"], 1)
             self.assertEqual(passport["artifacts"]["parser_quality"]["parsers"][0]["parser_name"], "pdftotext-layout")
             self.assertEqual(passport["artifacts"]["parser_quality"]["parsers"][0]["parse_confidence"], 0.82)
+            self.assertIn("topic_audit", passport)
+            self.assertIn("biomedical_amr.core", passport["topic_audit"]["profile"]["topic_ids"])
+            self.assertEqual(passport["topic_audit"]["curation"]["eligible_for_deep_read_count"], 1)
 
     def test_rejection_log_records_blocked_sources_and_failed_pdfs(self):
         with TemporaryDirectory() as tmp:
@@ -213,6 +216,8 @@ class ResearchArtifactTests(unittest.TestCase):
             self.assertEqual(summary["artifacts"]["stored_pdf_count"], 1)
             self.assertEqual(summary["screening_labels"]["counts"]["relevant"], 1)
             self.assertEqual(summary["source_policy"]["blocked_by_default"], ["github", "code", "archives"])
+            self.assertIn("topic_audit", summary)
+            self.assertIn("biomedical_amr.core", summary["topic_audit"]["profile"]["topic_ids"])
             self.assertEqual(summary["repro_lock"]["local_state"]["data_dir"], str(data_dir))
 
     def test_run_artifacts_include_llm_review_queue(self):

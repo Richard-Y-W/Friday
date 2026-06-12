@@ -73,7 +73,7 @@ from friday.screening import (
 from friday.settings import flatten_settings, load_settings, set_setting
 from friday.source_policy import evaluate_source
 from friday.storage import BatchItemRecord, FridayStore, SCREENING_LABEL_CHOICES
-from friday.topic_planning import update_topic_memory
+from friday.topic_planning import plan_topic_for_records, update_topic_memory
 from friday.writing_copilot import (
     MODE_CHOICES,
     build_writing_package_files,
@@ -172,9 +172,9 @@ def main(
     if args.command == "auto-label":
         return _handle_auto_label(args, store, data_dir, llm_label_client)
     if args.command == "report":
-        return _handle_report(args, store)
+        return _handle_report(args, store, data_dir)
     if args.command == "write":
-        return _handle_write(args, store)
+        return _handle_write(args, store, data_dir)
 
     parser.print_help()
     return 2
@@ -747,7 +747,7 @@ def _handle_natural_language_query(
     def report_json_data() -> dict:
         nonlocal report_data
         if report_data is None:
-            report_data = render_batch_report_json(store, loaded.batch_id)
+            report_data = render_batch_report_json(store, loaded.batch_id, data_dir=data_dir)
         return report_data
 
     print(f"Natural query: {args.query}")
@@ -759,8 +759,8 @@ def _handle_natural_language_query(
         print(f"Discovery error: {discovery_error}")
     content = _format_report(
         args.format,
-        text=lambda: render_batch_report(store, loaded.batch_id),
-        markdown=lambda: render_batch_report_markdown(store, loaded.batch_id),
+        text=lambda: render_batch_report(store, loaded.batch_id, data_dir=data_dir),
+        markdown=lambda: render_batch_report_markdown(store, loaded.batch_id, data_dir=data_dir),
         json_data=report_json_data,
     )
     _emit_output(content, args.output, label="report")
@@ -975,9 +975,9 @@ def _handle_research(
 
     report_content = _format_report(
         args.format,
-        text=lambda: render_batch_report(store, loaded.batch_id),
-        markdown=lambda: render_batch_report_markdown(store, loaded.batch_id),
-        json_data=lambda: render_batch_report_json(store, loaded.batch_id),
+        text=lambda: render_batch_report(store, loaded.batch_id, data_dir=data_dir),
+        markdown=lambda: render_batch_report_markdown(store, loaded.batch_id, data_dir=data_dir),
+        json_data=lambda: render_batch_report_json(store, loaded.batch_id, data_dir=data_dir),
     )
     _emit_output(report_content, args.output, label="report")
 
@@ -1312,9 +1312,9 @@ def _handle_research_run(
         loaded_batch = store.get_batch(loaded_batch.batch_id)
         report_content = _format_report(
             report_format,
-            text=lambda: render_batch_report(store, loaded_batch.batch_id),
-            markdown=lambda: render_batch_report_markdown(store, loaded_batch.batch_id),
-            json_data=lambda: render_batch_report_json(store, loaded_batch.batch_id),
+            text=lambda: render_batch_report(store, loaded_batch.batch_id, data_dir=data_dir),
+            markdown=lambda: render_batch_report_markdown(store, loaded_batch.batch_id, data_dir=data_dir),
+            json_data=lambda: render_batch_report_json(store, loaded_batch.batch_id, data_dir=data_dir),
         )
         run = store.update_research_run(run.run_id, status="complete")
         run = store.sync_research_run_counts(run.run_id)
@@ -1916,7 +1916,7 @@ def _handle_llm(args: argparse.Namespace, data_dir: Path) -> int:
     return 1
 
 
-def _handle_report(args: argparse.Namespace, store: FridayStore) -> int:
+def _handle_report(args: argparse.Namespace, store: FridayStore, data_dir: Path) -> int:
     target_id = args.target_id
     if args.latest:
         latest = store.latest_batch()
@@ -1941,13 +1941,13 @@ def _handle_report(args: argparse.Namespace, store: FridayStore) -> int:
     if target_id.startswith("batch_"):
         content = _format_report(
             args.format,
-            text=lambda: render_batch_report(store, target_id),
-            markdown=lambda: render_batch_report_markdown(store, target_id),
-            json_data=lambda: render_batch_report_json(store, target_id),
+            text=lambda: render_batch_report(store, target_id, data_dir=data_dir),
+            markdown=lambda: render_batch_report_markdown(store, target_id, data_dir=data_dir),
+            json_data=lambda: render_batch_report_json(store, target_id, data_dir=data_dir),
         )
         _emit_output(content, args.output, label="report")
         if args.passport:
-            write_json_artifact(Path(args.passport), build_batch_passport(store, target_id))
+            write_json_artifact(Path(args.passport), build_batch_passport(store, target_id, data_dir=data_dir))
             print(f"Wrote passport: {args.passport}")
         if args.rejection_log:
             write_json_artifact(Path(args.rejection_log), build_rejection_log(store, target_id))
@@ -1974,7 +1974,7 @@ def _handle_import_corpus(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_write(args: argparse.Namespace, store: FridayStore) -> int:
+def _handle_write(args: argparse.Namespace, store: FridayStore, data_dir: Path) -> int:
     if args.report:
         report_data = json.loads(Path(args.report).read_text(encoding="utf-8"))
     else:
@@ -1988,7 +1988,7 @@ def _handle_write(args: argparse.Namespace, store: FridayStore) -> int:
         if not batch_id:
             print("write requires --batch-id, --latest, or --report")
             return 2
-        report_data = render_batch_report_json(store, batch_id)
+        report_data = render_batch_report_json(store, batch_id, data_dir=data_dir)
 
     if report_data.get("report_type") != "batch":
         print("write requires a batch report JSON or batch id.")
@@ -2240,7 +2240,7 @@ def _deep_read_ranked_batch_items(
     stored_count = store.get_batch(batch_id).deep_read_count
     candidates = [
         item
-        for item in _ranked_deep_read_items(store, batch_id, min_relevance)
+        for item in _ranked_deep_read_items(store, data_dir, batch_id, min_relevance)
         if item.source not in attempted_sources
     ]
     workers = max(1, deep_read_workers)
@@ -2305,11 +2305,24 @@ def _run_deep_read_window(
     return stored_count
 
 
-def _ranked_deep_read_items(store: FridayStore, batch_id: str, min_relevance: int) -> list[BatchItemRecord]:
+def _ranked_deep_read_items(
+    store: FridayStore,
+    data_dir: Path,
+    batch_id: str,
+    min_relevance: int,
+) -> list[BatchItemRecord]:
+    batch = store.get_batch(batch_id)
+    items = store.list_batch_items(batch_id)
+    topic_profile = (
+        plan_topic_for_records(batch.query, items, learned_profile_dir=_topic_memory_dir(data_dir))
+        if batch.query
+        else None
+    )
     return rank_deep_read_items(
-        store.list_batch_items(batch_id),
+        items,
         store.list_screening_labels(batch_id),
         min_relevance=min_relevance,
+        topic_profile=topic_profile,
     )
 
 

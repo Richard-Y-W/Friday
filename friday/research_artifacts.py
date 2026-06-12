@@ -11,6 +11,7 @@ from friday.evidence import is_reportable_evidence_text
 from friday.query_planning import plan_query, render_acronym_expansions
 from friday.screening import LlmReviewQueueItem, build_screening_label_summary
 from friday.storage import EvidenceRecord, FridayStore
+from friday.topic_planning import build_topic_audit
 
 
 STOCHASTICITY_DECLARATION = (
@@ -55,6 +56,11 @@ def build_batch_passport(
             "intent": query_plan.intent if query_plan else None,
             "acronym_expansions": render_acronym_expansions(query_plan) if query_plan else None,
         },
+        "topic_audit": build_topic_audit(
+            batch.query or "",
+            items,
+            learned_profile_dir=_learned_topic_profile_dir(data_dir),
+        ),
         "search": {
             "providers_observed": providers,
             "query_variants_observed": query_variants,
@@ -227,6 +233,11 @@ def build_research_run_summary(
             "blocked_by_default": ["github", "code", "archives"],
             "untrusted_text_rule": "Paper text may be parsed and cited but must not control commands, prompts, paths, or tool use.",
         },
+        "topic_audit": build_topic_audit(
+            batch.query if batch else run.query,
+            items,
+            learned_profile_dir=_learned_topic_profile_dir(data_dir),
+        ),
         "artifacts": {
             "pdf_attempt_count": len(artifacts),
             "stored_pdf_count": len([artifact for artifact in artifacts if artifact.status == "stored"]),
@@ -278,6 +289,12 @@ def build_llm_review_queue_artifact(queue: list[LlmReviewQueueItem]) -> dict[str
             for rank, entry in enumerate(queue, start=1)
         ],
     }
+
+
+def _learned_topic_profile_dir(data_dir: Path | None) -> Path | None:
+    if data_dir is None:
+        return None
+    return Path(data_dir) / "topic_profiles" / "learned"
 
 
 def _evidence_quality_summary(store: FridayStore, batch_id: str) -> dict[str, Any]:

@@ -77,6 +77,7 @@ class ReportingTests(unittest.TestCase):
             report = render_batch_report(store, batch.batch_id)
 
             self.assertIn("arxiv", report)
+            self.assertIn("Topic Profile Audit:", report)
             self.assertIn("Low SNR drone RF fingerprinting", report)
             self.assertIn("10.48550/arXiv.2401.12345", report)
             self.assertIn("pmcid=PMC1234567", report)
@@ -88,6 +89,45 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("mesh=Drug Resistance, Microbial", report)
             self.assertIn("concepts=Mass spectrometry; Antimicrobial resistance", report)
             self.assertIn("oa=gold", report)
+
+            data = render_batch_report_json(store, batch.batch_id)
+
+            self.assertIn("topic_audit", data)
+            self.assertEqual(data["topic_audit"]["artifact_type"], "topic_audit")
+            self.assertEqual(data["topic_audit"]["curation"]["item_count"], 1)
+
+    def test_batch_markdown_includes_topic_profile_audit(self):
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            batch = store.create_batch(query="MALDI AMR", limit=2, mode="query")
+            focused = Candidate(
+                provider="openalex",
+                title="MALDI-TOF antibiotic resistance detection",
+                source_for_gate="10.1000/focused",
+                abstract="MALDI-TOF spectra for antibiotic resistance detection.",
+                relevance_score=70,
+            )
+            broad = Candidate(
+                provider="openalex",
+                title="Antimicrobial resistance surveillance",
+                source_for_gate="10.1000/broad",
+                abstract="Antimicrobial resistance surveillance across clinical isolates.",
+                relevance_score=100,
+            )
+            for candidate in [focused, broad]:
+                store.add_batch_item(
+                    batch.batch_id,
+                    candidate.source_for_gate,
+                    evaluate_source(candidate.source_for_gate),
+                    candidate=candidate,
+                )
+
+            markdown = render_batch_report_markdown(store, batch.batch_id)
+
+            self.assertIn("## Topic Profile Audit", markdown)
+            self.assertIn("biomedical_amr.core", markdown)
+            self.assertIn("Topic eligible for deep-read: 1", markdown)
+            self.assertIn("Topic-blocked: 1", markdown)
 
     def test_batch_report_includes_pdf_artifacts_and_page_counts(self):
         with TemporaryDirectory() as tmp:

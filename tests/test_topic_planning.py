@@ -4,6 +4,8 @@ from tempfile import TemporaryDirectory
 
 from friday.discovery import Candidate
 from friday.topic_planning import (
+    build_topic_audit,
+    evaluate_topic_curation,
     load_seed_profiles,
     load_learned_profiles,
     mine_metadata_profile,
@@ -137,6 +139,73 @@ class TopicPlanningTests(unittest.TestCase):
         self.assertIn("Protein folding", planned.positive_terms)
         self.assertIn("Origami", planned.negative_terms)
         self.assertIn("learned.protein_folding", planned.topic_ids)
+
+    def test_topic_curation_blocks_broad_amr_without_maldi_focus(self):
+        profile = plan_topic("MALDI AMR")
+        focused = Candidate(
+            provider="openalex",
+            title="Direct antimicrobial resistance prediction from clinical MALDI-TOF mass spectra",
+            source_for_gate="10.1000/focused",
+            abstract="MALDI-TOF mass spectra support antibiotic resistance prediction.",
+        )
+        broad = Candidate(
+            provider="openalex",
+            title="Antimicrobial resistance surveillance in Africa",
+            source_for_gate="10.1000/broad",
+            abstract="Antimicrobial resistance surveillance across clinical isolates.",
+        )
+
+        focused_decision = evaluate_topic_curation(focused, profile)
+        broad_decision = evaluate_topic_curation(broad, profile)
+
+        self.assertTrue(focused_decision.eligible_for_deep_read)
+        self.assertIn("MALDI-TOF", focused_decision.matched_positive_terms)
+        self.assertFalse(broad_decision.eligible_for_deep_read)
+        self.assertEqual(broad_decision.status, "topic_mismatch")
+
+    def test_topic_curation_blocks_clinical_noise_without_query_focus(self):
+        profile = plan_topic("sepsis procalcitonin antibiotic stewardship")
+        focused = Candidate(
+            provider="pubmed",
+            title="Procalcitonin-guided antibiotic stewardship in sepsis",
+            source_for_gate="10.1000/sepsis",
+            abstract="Patients with sepsis received procalcitonin-guided antibiotic stewardship.",
+        )
+        noise = Candidate(
+            provider="pubmed",
+            title="Clinical diagnostic accuracy of Parkinson's disease",
+            source_for_gate="10.1000/parkinsons",
+            abstract="Diagnostic accuracy in patients with Parkinson's disease.",
+        )
+
+        self.assertTrue(evaluate_topic_curation(focused, profile).eligible_for_deep_read)
+        noise_decision = evaluate_topic_curation(noise, profile)
+        self.assertFalse(noise_decision.eligible_for_deep_read)
+        self.assertEqual(noise_decision.reason, "missing_query_focus")
+
+    def test_build_topic_audit_reports_profile_and_curation_counts(self):
+        profile = plan_topic("MALDI AMR")
+        items = [
+            Candidate(
+                provider="openalex",
+                title="MALDI-TOF antibiotic resistance detection",
+                source_for_gate="10.1000/focused",
+                abstract="MALDI-TOF spectra for antibiotic resistance detection.",
+            ),
+            Candidate(
+                provider="openalex",
+                title="Antimicrobial resistance surveillance",
+                source_for_gate="10.1000/broad",
+                abstract="Antimicrobial resistance in clinical isolates.",
+            ),
+        ]
+
+        audit = build_topic_audit("MALDI AMR", items, topic_profile=profile)
+
+        self.assertIn("biomedical_amr.core", audit["profile"]["topic_ids"])
+        self.assertEqual(audit["curation"]["eligible_for_deep_read_count"], 1)
+        self.assertEqual(audit["curation"]["blocked_by_topic_count"], 1)
+        self.assertEqual(audit["items"][1]["status"], "topic_mismatch")
 
 
 if __name__ == "__main__":

@@ -30,6 +30,20 @@ class TopicProfile:
     required_terms: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class TopicCurationDecision:
+    source: str | None
+    title: str | None
+    status: str
+    eligible_for_deep_read: bool
+    curation_score: int
+    matched_query_terms: tuple[str, ...]
+    matched_core_terms: tuple[str, ...]
+    matched_positive_terms: tuple[str, ...]
+    matched_negative_terms: tuple[str, ...]
+    reason: str
+
+
 def plan_topic(query: str, *, learned_profile_dir: Path | None = None) -> TopicProfile:
     cleaned = " ".join(query.split())
     profiles = [*load_seed_profiles()]
@@ -44,6 +58,21 @@ def plan_topic(query: str, *, learned_profile_dir: Path | None = None) -> TopicP
     if not matches:
         return _unknown_profile(cleaned)
     return compose_topic_profiles(cleaned, matches)
+
+
+def plan_topic_for_records(
+    query: str,
+    records: Iterable[Any],
+    *,
+    learned_profile_dir: Path | None = None,
+) -> TopicProfile:
+    profile = plan_topic(query, learned_profile_dir=learned_profile_dir)
+    if profile.domain != "unknown":
+        return profile
+    mined = mine_metadata_profile(query, records)
+    if mined.domain != "unknown":
+        return mined
+    return profile
 
 
 def load_seed_profiles(profile_dir: Path = DEFAULT_SEED_PROFILE_DIR) -> list[TopicProfile]:
@@ -162,6 +191,105 @@ def update_topic_memory(
     return _profile_from_mapping(payload, default_reason="learned_profile")
 
 
+def evaluate_topic_curation(record: Any, topic_profile: TopicProfile) -> TopicCurationDecision:
+    if topic_profile.domain == "unknown":
+        return TopicCurationDecision(
+            source=getattr(record, "source", None) or getattr(record, "source_for_gate", None),
+            title=getattr(record, "title", None),
+            status="unknown_topic",
+            eligible_for_deep_read=True,
+            curation_score=0,
+            matched_query_terms=(),
+            matched_core_terms=(),
+            matched_positive_terms=(),
+            matched_negative_terms=(),
+            reason="no_topic_profile",
+        )
+
+    text = _record_text(record)
+    normalized = _normalize(text)
+    query_terms = _query_focus_terms(topic_profile.query)
+    matched_query_terms = tuple(term for term in query_terms if _contains_term(normalized, term))
+    matched_core_terms = tuple(term for term in topic_profile.core_terms if _contains_term(normalized, term))
+    matched_positive_terms = tuple(
+        term for term in topic_profile.positive_terms if _contains_term(normalized, term)
+    )
+    matched_negative_terms = tuple(
+        term for term in topic_profile.negative_terms if _contains_term(normalized, term)
+    )
+    curation_score = (
+        12 * len(matched_query_terms)
+        + 10 * len(matched_core_terms)
+        + 4 * len(matched_positive_terms)
+        - 10 * len(matched_negative_terms)
+    )
+
+    has_topic_evidence = bool(matched_core_terms or matched_positive_terms)
+    has_query_focus = bool(matched_query_terms)
+    if matched_negative_terms and not has_topic_evidence and not has_query_focus:
+        status = "topic_mismatch"
+        eligible = False
+        reason = "negative_terms_without_topic_evidence"
+    elif not has_query_focus:
+        status = "topic_mismatch"
+        eligible = False
+        reason = "missing_query_focus"
+    elif not has_topic_evidence:
+        status = "weak_topic_match"
+        eligible = False
+        reason = "missing_profile_terms"
+    else:
+        status = "topic_match"
+        eligible = True
+        reason = "query_and_profile_terms_matched"
+
+    return TopicCurationDecision(
+        source=getattr(record, "source", None) or getattr(record, "source_for_gate", None),
+        title=getattr(record, "title", None),
+        status=status,
+        eligible_for_deep_read=eligible,
+        curation_score=curation_score,
+        matched_query_terms=matched_query_terms,
+        matched_core_terms=matched_core_terms,
+        matched_positive_terms=matched_positive_terms,
+        matched_negative_terms=matched_negative_terms,
+        reason=reason,
+    )
+
+
+def build_topic_audit(
+    query: str,
+    records: Iterable[Any],
+    *,
+    learned_profile_dir: Path | None = None,
+    topic_profile: TopicProfile | None = None,
+) -> dict[str, Any]:
+    items = list(records)
+    profile = topic_profile or plan_topic_for_records(query, items, learned_profile_dir=learned_profile_dir)
+    decisions = [evaluate_topic_curation(item, profile) for item in items]
+    return {
+        "schema_version": "1.0",
+        "artifact_type": "topic_audit",
+        "profile": _topic_profile_artifact(profile),
+        "curation": {
+            "item_count": len(decisions),
+            "eligible_for_deep_read_count": sum(1 for decision in decisions if decision.eligible_for_deep_read),
+            "blocked_by_topic_count": sum(
+                1 for decision in decisions if not decision.eligible_for_deep_read
+            ),
+            "status_counts": _status_counts(decisions),
+            "policy": {
+                "requires": [
+                    "at least one non-stopword query-focus term",
+                    "at least one core or positive topic-profile term",
+                ],
+                "human_override": "Human relevant labels may still force deep-read eligibility.",
+            },
+        },
+        "items": [_topic_curation_artifact(decision) for decision in decisions],
+    }
+
+
 def _load_profile_dir(profile_dir: Path, *, default_reason: str) -> list[TopicProfile]:
     if not profile_dir.exists():
         return []
@@ -267,6 +395,73 @@ def _metadata_search_queries(query: str, positive_terms: list[str]) -> list[str]
             continue
         queries.append(f"{query} {term}".strip())
     return _dedupe(queries)
+
+
+def _topic_profile_artifact(profile: TopicProfile) -> dict[str, Any]:
+    return {
+        "profile_id": profile.profile_id,
+        "topic_ids": list(profile.topic_ids),
+        "domain": profile.domain,
+        "reason": profile.reason,
+        "core_terms": list(profile.core_terms),
+        "positive_terms": list(profile.positive_terms),
+        "negative_terms": list(profile.negative_terms),
+        "search_queries": list(profile.search_queries),
+        "source_preferences": list(profile.source_preferences),
+        "evidence_policy_hint": profile.evidence_policy_hint,
+        "match_terms": list(profile.match_terms),
+        "required_terms": list(profile.required_terms),
+    }
+
+
+def _topic_curation_artifact(decision: TopicCurationDecision) -> dict[str, Any]:
+    return {
+        "source": decision.source,
+        "title": decision.title,
+        "status": decision.status,
+        "eligible_for_deep_read": decision.eligible_for_deep_read,
+        "curation_score": decision.curation_score,
+        "matched_query_terms": list(decision.matched_query_terms),
+        "matched_core_terms": list(decision.matched_core_terms),
+        "matched_positive_terms": list(decision.matched_positive_terms),
+        "matched_negative_terms": list(decision.matched_negative_terms),
+        "reason": decision.reason,
+    }
+
+
+def _status_counts(decisions: list[TopicCurationDecision]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for decision in decisions:
+        counts[decision.status] = counts.get(decision.status, 0) + 1
+    return counts
+
+
+def _record_text(record: Any) -> str:
+    return " ".join(
+        value
+        for value in [
+            getattr(record, "title", None),
+            getattr(record, "abstract", None),
+            getattr(record, "journal", None),
+            getattr(record, "concepts", None),
+            getattr(record, "mesh_terms", None),
+            getattr(record, "query_variant", None),
+        ]
+        if value
+    )
+
+
+def _query_focus_terms(query: str) -> tuple[str, ...]:
+    tokens = [
+        token
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9-]*", query)
+        if len(token) >= 3 and token.lower() not in _STOP_TERMS
+    ]
+    phrase_terms = []
+    for size in (2, 3):
+        for index in range(0, max(0, len(tokens) - size + 1)):
+            phrase_terms.append(" ".join(tokens[index : index + size]))
+    return tuple(_dedupe([*phrase_terms, *tokens]))
 
 
 def _unknown_profile(query: str) -> TopicProfile:

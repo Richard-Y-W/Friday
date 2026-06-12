@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 from friday.cited_report import build_cited_evidence_data, render_cited_evidence_report
 from friday.claim_audit import build_claim_support_audit
 from friday.evidence import is_reportable_evidence_text
 from friday.screening import build_screening_label_summary
 from friday.storage import BatchItemRecord, EvidenceRecord, FridayStore, PdfArtifactRecord
+from friday.topic_planning import build_topic_audit
 
 
 def render_scan_report(store: FridayStore, scan_id: str) -> str:
@@ -84,8 +86,8 @@ def render_scan_report_json(store: FridayStore, scan_id: str) -> dict[str, Any]:
     }
 
 
-def render_batch_report(store: FridayStore, batch_id: str) -> str:
-    data = build_batch_report_data(store, batch_id)
+def render_batch_report(store: FridayStore, batch_id: str, *, data_dir: Path | None = None) -> str:
+    data = build_batch_report_data(store, batch_id, data_dir=data_dir)
     batch = data["batch"]
     lines = [
         f"Batch ID: {batch['batch_id']}",
@@ -107,6 +109,7 @@ def render_batch_report(store: FridayStore, batch_id: str) -> str:
         ]
     )
     lines.extend(_render_screening_labels_from_data(data))
+    lines.extend(_render_topic_audit_from_data(data["topic_audit"]))
     if data["items"]:
         lines.extend(["", "Items:"])
         for item in data["items"]:
@@ -119,8 +122,8 @@ def render_batch_report(store: FridayStore, batch_id: str) -> str:
     return "\n".join(lines)
 
 
-def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
-    data = build_batch_report_data(store, batch_id)
+def render_batch_report_markdown(store: FridayStore, batch_id: str, *, data_dir: Path | None = None) -> str:
+    data = build_batch_report_data(store, batch_id, data_dir=data_dir)
     batch = data["batch"]
     cited = data["cited_evidence"]
     lines = [
@@ -156,6 +159,8 @@ def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
             lines.append(_render_markdown_screening_label(label))
     else:
         lines.append("- No human screening labels are stored for this batch yet.")
+
+    lines.extend(_render_markdown_topic_audit(data["topic_audit"]))
     lines.extend(
         [
             "",
@@ -227,11 +232,21 @@ def render_batch_report_markdown(store: FridayStore, batch_id: str) -> str:
     return "\n".join(lines).rstrip()
 
 
-def render_batch_report_json(store: FridayStore, batch_id: str) -> dict[str, Any]:
-    return build_batch_report_data(store, batch_id)
+def render_batch_report_json(
+    store: FridayStore,
+    batch_id: str,
+    *,
+    data_dir: Path | None = None,
+) -> dict[str, Any]:
+    return build_batch_report_data(store, batch_id, data_dir=data_dir)
 
 
-def build_batch_report_data(store: FridayStore, batch_id: str) -> dict[str, Any]:
+def build_batch_report_data(
+    store: FridayStore,
+    batch_id: str,
+    *,
+    data_dir: Path | None = None,
+) -> dict[str, Any]:
     batch = store.get_batch(batch_id)
     items = store.list_batch_items(batch.batch_id)
     labels = store.list_screening_labels(batch.batch_id)
@@ -257,6 +272,11 @@ def build_batch_report_data(store: FridayStore, batch_id: str) -> dict[str, Any]
         },
         "items": [_batch_item_data(item, labels_by_normalized.get(item.normalized)) for item in items],
         "screening_labels": screening_labels,
+        "topic_audit": build_topic_audit(
+            batch.query or "",
+            items,
+            learned_profile_dir=_learned_topic_profile_dir(data_dir),
+        ),
         "pdf_artifacts": [_pdf_artifact_data(store, artifact) for artifact in artifacts],
         "evidence_status": _evidence_status_data(store, artifacts),
         "cited_evidence": build_cited_evidence_data(store, batch.batch_id),
@@ -266,6 +286,49 @@ def build_batch_report_data(store: FridayStore, batch_id: str) -> dict[str, Any]
 
 def _render_batch_item(item: BatchItemRecord) -> str:
     return _render_batch_item_data(_batch_item_data(item))
+
+
+def _render_topic_audit_from_data(topic_audit: dict[str, Any]) -> list[str]:
+    profile = topic_audit["profile"]
+    curation = topic_audit["curation"]
+    topic_ids = ", ".join(profile["topic_ids"]) or profile["profile_id"] or "unknown"
+    return [
+        "",
+        "Topic Profile Audit:",
+        f"profile={topic_ids}",
+        f"domain={profile['domain']}",
+        f"evidence_policy_hint={profile['evidence_policy_hint'] or '-'}",
+        f"topic_eligible_for_deep_read={curation['eligible_for_deep_read_count']}",
+        f"topic_blocked={curation['blocked_by_topic_count']}",
+    ]
+
+
+def _render_markdown_topic_audit(topic_audit: dict[str, Any]) -> list[str]:
+    profile = topic_audit["profile"]
+    curation = topic_audit["curation"]
+    topic_ids = ", ".join(profile["topic_ids"]) or profile["profile_id"] or "unknown"
+    lines = [
+        "",
+        "## Topic Profile Audit",
+        "",
+        f"- Profile: {topic_ids}",
+        f"- Domain: {profile['domain']}",
+        f"- Evidence policy hint: {profile['evidence_policy_hint'] or '-'}",
+        f"- Search variants: {', '.join(profile['search_queries']) or '-'}",
+        f"- Topic eligible for deep-read: {curation['eligible_for_deep_read_count']}",
+        f"- Topic-blocked: {curation['blocked_by_topic_count']}",
+    ]
+    blocked_items = [
+        item
+        for item in topic_audit["items"]
+        if not item["eligible_for_deep_read"]
+    ][:5]
+    if blocked_items:
+        lines.append("- Topic-blocked examples:")
+        for item in blocked_items:
+            title = item["title"] or item["source"]
+            lines.append(f"  - {item['status']}: {title} ({item['reason']})")
+    return lines
 
 
 def _render_batch_item_data(item: dict[str, Any]) -> str:
@@ -281,6 +344,12 @@ def _render_batch_item_data(item: dict[str, Any]) -> str:
         f"- {status}: [{provider}] {title}{suffix}{relevance}{query_context}{metadata}; "
         f"source={item['source']}; reason={item['reason']}"
     )
+
+
+def _learned_topic_profile_dir(data_dir: Path | None) -> Path | None:
+    if data_dir is None:
+        return None
+    return Path(data_dir) / "topic_profiles" / "learned"
 
 
 def _batch_item_data(item: BatchItemRecord, screening_label: dict[str, object] | None = None) -> dict[str, Any]:
