@@ -28,6 +28,8 @@ class TopicProfile:
     evidence_policy_hint: str | None = None
     match_terms: tuple[str, ...] = ()
     required_terms: tuple[str, ...] = ()
+    component_terms: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    required_component_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class TopicCurationDecision:
     matched_core_terms: tuple[str, ...]
     matched_positive_terms: tuple[str, ...]
     matched_negative_terms: tuple[str, ...]
+    matched_topic_components: tuple[str, ...]
+    missing_topic_components: tuple[str, ...]
     reason: str
 
 
@@ -114,6 +118,18 @@ def compose_topic_profiles(query: str, profiles: Iterable[TopicProfile]) -> Topi
         evidence_policy_hint=hints[0] if len(hints) == 1 else "+".join(hints) if hints else None,
         match_terms=tuple(_dedupe([term for profile in selected for term in profile.match_terms])),
         required_terms=tuple(_dedupe([term for profile in selected for term in profile.required_terms])),
+        component_terms=tuple(
+            _dedupe_components(
+                component
+                for profile in selected
+                for component in (profile.component_terms or _component_terms(profile))
+            )
+        ),
+        required_component_ids=tuple(
+            profile.profile_id
+            for profile in selected
+            if profile.profile_id and _explicitly_activates_component(query, profile)
+        ),
         reason="composed_profiles:" + ",".join(topic_ids),
     )
 
@@ -146,6 +162,12 @@ def mine_metadata_profile(
         source_preferences=(),
         evidence_policy_hint=None,
         match_terms=(cleaned,) if cleaned else (),
+        component_terms=(
+            (profile_id or "session." + _slug(cleaned), tuple(_dedupe([cleaned, *positive_terms]))),
+        )
+        if cleaned or positive_terms
+        else (),
+        required_component_ids=(),
         reason="metadata_mined_profile" if positive_terms else "no_repeated_metadata_terms",
     )
 
@@ -203,6 +225,8 @@ def evaluate_topic_curation(record: Any, topic_profile: TopicProfile) -> TopicCu
             matched_core_terms=(),
             matched_positive_terms=(),
             matched_negative_terms=(),
+            matched_topic_components=(),
+            missing_topic_components=(),
             reason="no_topic_profile",
         )
 
@@ -217,16 +241,28 @@ def evaluate_topic_curation(record: Any, topic_profile: TopicProfile) -> TopicCu
     matched_negative_terms = tuple(
         term for term in topic_profile.negative_terms if _contains_term(normalized, term)
     )
+    matched_topic_components = _matched_topic_components(normalized, topic_profile)
+    missing_topic_components = tuple(
+        component_id
+        for component_id in topic_profile.required_component_ids
+        if component_id not in matched_topic_components
+    )
     curation_score = (
         12 * len(matched_query_terms)
         + 10 * len(matched_core_terms)
         + 4 * len(matched_positive_terms)
+        + 6 * len(matched_topic_components)
+        - 20 * len(missing_topic_components)
         - 10 * len(matched_negative_terms)
     )
 
     has_topic_evidence = bool(matched_core_terms or matched_positive_terms)
     has_query_focus = bool(matched_query_terms)
-    if matched_negative_terms and not has_topic_evidence and not has_query_focus:
+    if missing_topic_components:
+        status = "topic_mismatch"
+        eligible = False
+        reason = "missing_topic_component"
+    elif matched_negative_terms and not has_topic_evidence and not has_query_focus:
         status = "topic_mismatch"
         eligible = False
         reason = "negative_terms_without_topic_evidence"
@@ -253,6 +289,8 @@ def evaluate_topic_curation(record: Any, topic_profile: TopicProfile) -> TopicCu
         matched_core_terms=matched_core_terms,
         matched_positive_terms=matched_positive_terms,
         matched_negative_terms=matched_negative_terms,
+        matched_topic_components=matched_topic_components,
+        missing_topic_components=missing_topic_components,
         reason=reason,
     )
 
@@ -282,6 +320,7 @@ def build_topic_audit(
                 "requires": [
                     "at least one non-stopword query-focus term",
                     "at least one core or positive topic-profile term",
+                    "all explicitly activated topic components for composite queries",
                 ],
                 "human_override": "Human relevant labels may still force deep-read eligibility.",
             },
@@ -315,6 +354,8 @@ def _profile_from_mapping(payload: dict[str, Any], *, default_reason: str) -> To
         evidence_policy_hint=str(payload["evidence_policy_hint"]) if payload.get("evidence_policy_hint") else None,
         match_terms=tuple(_terms(payload.get("match_terms"))),
         required_terms=tuple(_terms(payload.get("required_terms"))),
+        component_terms=((profile_id, tuple(_profile_component_terms(payload))),),
+        required_component_ids=(profile_id,),
         reason=str(payload.get("reason") or default_reason),
     )
 
@@ -327,6 +368,53 @@ def _terms(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value if str(item).strip()]
     return [str(value)] if str(value).strip() else []
+
+
+def _profile_component_terms(payload: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        _dedupe(
+            [
+                *_terms(payload.get("core_terms")),
+                *_terms(payload.get("positive_terms")),
+                *_terms(payload.get("match_terms")),
+            ]
+        )
+    )
+
+
+def _component_terms(profile: TopicProfile) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    if not profile.profile_id:
+        return ()
+    return (
+        (
+            profile.profile_id,
+            tuple(_dedupe([*profile.core_terms, *profile.positive_terms, *profile.match_terms])),
+        ),
+    )
+
+
+def _dedupe_components(
+    components: Iterable[tuple[str, tuple[str, ...]]],
+) -> list[tuple[str, tuple[str, ...]]]:
+    deduped: list[tuple[str, tuple[str, ...]]] = []
+    seen: set[str] = set()
+    for component_id, terms in components:
+        if not component_id or component_id in seen:
+            continue
+        cleaned_terms = tuple(_dedupe(terms))
+        if not cleaned_terms:
+            continue
+        seen.add(component_id)
+        deduped.append((component_id, cleaned_terms))
+    return deduped
+
+
+def _explicitly_activates_component(query: str, profile: TopicProfile) -> bool:
+    normalized = _normalize(query)
+    for term in [*profile.match_terms, *profile.core_terms]:
+        if _contains_term(normalized, term):
+            return True
+    return False
 
 
 def _profile_match_score(query: str, profile: TopicProfile) -> int:
@@ -344,10 +432,22 @@ def _metadata_term_counts(records: Iterable[Any]) -> Counter[str]:
     counts: Counter[str] = Counter()
     for record in records:
         for term in _controlled_metadata_terms(record):
-            counts[term] += 2
+            if _is_useful_metadata_term(term):
+                counts[term] += 2
         for term in _text_metadata_terms(record):
-            counts[term] += 1
+            if _is_useful_metadata_term(term):
+                counts[term] += 1
     return counts
+
+
+def _is_useful_metadata_term(term: str) -> bool:
+    normalized = _normalize(term)
+    if not normalized or normalized in _GENERIC_METADATA_TERMS:
+        return False
+    tokens = normalized.split()
+    if len(tokens) == 1 and tokens[0] in _GENERIC_METADATA_TERMS:
+        return False
+    return True
 
 
 def _controlled_metadata_terms(record: Any) -> list[str]:
@@ -397,6 +497,14 @@ def _metadata_search_queries(query: str, positive_terms: list[str]) -> list[str]
     return _dedupe(queries)
 
 
+def _matched_topic_components(normalized_text: str, profile: TopicProfile) -> tuple[str, ...]:
+    matched: list[str] = []
+    for component_id, terms in profile.component_terms:
+        if any(_contains_term(normalized_text, term) for term in terms):
+            matched.append(component_id)
+    return tuple(matched)
+
+
 def _topic_profile_artifact(profile: TopicProfile) -> dict[str, Any]:
     return {
         "profile_id": profile.profile_id,
@@ -411,6 +519,11 @@ def _topic_profile_artifact(profile: TopicProfile) -> dict[str, Any]:
         "evidence_policy_hint": profile.evidence_policy_hint,
         "match_terms": list(profile.match_terms),
         "required_terms": list(profile.required_terms),
+        "component_terms": [
+            {"component_id": component_id, "terms": list(terms)}
+            for component_id, terms in profile.component_terms
+        ],
+        "required_component_ids": list(profile.required_component_ids),
     }
 
 
@@ -425,6 +538,8 @@ def _topic_curation_artifact(decision: TopicCurationDecision) -> dict[str, Any]:
         "matched_core_terms": list(decision.matched_core_terms),
         "matched_positive_terms": list(decision.matched_positive_terms),
         "matched_negative_terms": list(decision.matched_negative_terms),
+        "matched_topic_components": list(decision.matched_topic_components),
+        "missing_topic_components": list(decision.missing_topic_components),
         "reason": decision.reason,
     }
 
@@ -445,7 +560,6 @@ def _record_text(record: Any) -> str:
             getattr(record, "journal", None),
             getattr(record, "concepts", None),
             getattr(record, "mesh_terms", None),
-            getattr(record, "query_variant", None),
         ]
         if value
     )
@@ -528,4 +642,24 @@ _STOP_TERMS = {
     "this",
     "using",
     "with",
+}
+
+_GENERIC_METADATA_TERMS = {
+    "agricultural and biological sciences",
+    "biology",
+    "biochemistry",
+    "chemistry",
+    "computer science",
+    "earth and planetary sciences",
+    "economics",
+    "electrical engineering",
+    "engineering",
+    "environmental science",
+    "materials science",
+    "mathematics",
+    "medicine",
+    "physics",
+    "psychology",
+    "social sciences",
+    "statistics",
 }

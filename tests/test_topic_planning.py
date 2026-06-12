@@ -163,6 +163,94 @@ class TopicPlanningTests(unittest.TestCase):
         self.assertFalse(broad_decision.eligible_for_deep_read)
         self.assertEqual(broad_decision.status, "topic_mismatch")
 
+    def test_topic_curation_ignores_query_variant_for_focus_terms(self):
+        profile = plan_topic("MALDI AMR")
+        broad = Candidate(
+            provider="openalex",
+            title="Antimicrobial resistance surveillance in Africa",
+            source_for_gate="10.1000/broad-query-variant",
+            abstract="Antimicrobial resistance surveillance across clinical isolates.",
+            query_variant="MALDI antimicrobial resistance",
+        )
+
+        decision = evaluate_topic_curation(broad, profile)
+
+        self.assertFalse(decision.eligible_for_deep_read)
+        self.assertNotIn("MALDI", decision.matched_query_terms)
+
+    def test_composite_topic_curation_requires_all_components(self):
+        profile = plan_topic("MALDI AMR")
+        broad_amr = Candidate(
+            provider="openalex",
+            title="Antimicrobial resistance surveillance in clinical isolates",
+            source_for_gate="10.1000/broad-amr",
+            abstract="Antibiotic resistance and clinical isolate surveillance.",
+        )
+        maldi_only = Candidate(
+            provider="openalex",
+            title="MALDI-TOF species identification by mass spectrometry",
+            source_for_gate="10.1000/maldi-only",
+            abstract="Mass spectra support bacterial identification.",
+        )
+        focused = Candidate(
+            provider="openalex",
+            title="MALDI-TOF antimicrobial resistance detection",
+            source_for_gate="10.1000/maldi-amr",
+            abstract="MALDI-TOF mass spectra support antibiotic resistance detection.",
+        )
+
+        broad_decision = evaluate_topic_curation(broad_amr, profile)
+        maldi_decision = evaluate_topic_curation(maldi_only, profile)
+        focused_decision = evaluate_topic_curation(focused, profile)
+
+        self.assertFalse(broad_decision.eligible_for_deep_read)
+        self.assertEqual(broad_decision.reason, "missing_topic_component")
+        self.assertFalse(maldi_decision.eligible_for_deep_read)
+        self.assertEqual(maldi_decision.reason, "missing_topic_component")
+        self.assertTrue(focused_decision.eligible_for_deep_read)
+
+    def test_metadata_mined_topic_curation_blocks_generic_protein_paper(self):
+        profile = mine_metadata_profile(
+            "protein folding",
+            [
+                Candidate(
+                    provider="openalex",
+                    title="Protein folding dynamics with AlphaFold structural biology",
+                    source_for_gate="10.1000/folding-1",
+                    abstract="Protein folding and structural biology benchmarks.",
+                    concepts="Protein folding; Structural biology; Molecular dynamics; Biochemistry",
+                ),
+                Candidate(
+                    provider="openalex",
+                    title="Protein folding pathways in molecular dynamics",
+                    source_for_gate="10.1000/folding-2",
+                    abstract="Molecular dynamics simulations model protein folding pathways.",
+                    concepts="Protein folding; Molecular dynamics; Biochemistry",
+                ),
+            ],
+        )
+        generic = Candidate(
+            provider="openalex",
+            title="Protein measurement with the Folin phenol reagent",
+            source_for_gate="10.1000/protein-assay",
+            abstract="A biochemical assay measures protein concentration in samples.",
+            concepts="Protein; Biochemistry; Chemistry",
+        )
+        focused = Candidate(
+            provider="openalex",
+            title="Protein folding dynamics in molecular simulations",
+            source_for_gate="10.1000/focused-folding",
+            abstract="Molecular dynamics simulations characterize protein folding pathways.",
+            concepts="Protein folding; Molecular dynamics; Structural biology",
+        )
+
+        generic_decision = evaluate_topic_curation(generic, profile)
+        focused_decision = evaluate_topic_curation(focused, profile)
+
+        self.assertFalse(generic_decision.eligible_for_deep_read)
+        self.assertNotIn("Biochemistry", profile.positive_terms)
+        self.assertTrue(focused_decision.eligible_for_deep_read)
+
     def test_topic_curation_blocks_clinical_noise_without_query_focus(self):
         profile = plan_topic("sepsis procalcitonin antibiotic stewardship")
         focused = Candidate(
