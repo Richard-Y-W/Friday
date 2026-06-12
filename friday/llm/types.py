@@ -6,8 +6,10 @@ from typing import Any, Optional, Protocol, runtime_checkable
 
 # Provider identifiers. "none" means "no model configured" — the default, which
 # keeps Friday a zero-token deterministic tool unless a role is explicitly wired
-# to a real provider.
-ProviderName = str  # "ollama" | "openai" | "anthropic" | "none"
+# to a real provider. "claude_cli"/"codex_cli" run against the user's Claude /
+# ChatGPT subscription via the local CLIs (no API tokens); "anthropic"/"openai"
+# are the API-key-billed fallbacks.
+ProviderName = str  # "ollama" | "claude_cli" | "codex_cli" | "openai" | "anthropic" | "none"
 
 # Roles map a pipeline stage to a model. Keeping roles explicit lets a cheap
 # local model screen while a stronger model composes and a *different* model

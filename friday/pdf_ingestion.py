@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 import hashlib
+import os
 import shutil
 import subprocess
 import tempfile
@@ -11,6 +12,11 @@ from typing import Callable, Iterable
 from urllib.parse import urljoin, urlparse
 from urllib.request import urlopen
 import xml.etree.ElementTree as ET
+
+try:  # POSIX only; used to cap the parser's memory/CPU.
+    import resource as _resource
+except ImportError:  # pragma: no cover - Windows
+    _resource = None
 
 from friday.discovery import Candidate
 from friday.evidence import extract_evidence_from_pages
@@ -21,6 +27,26 @@ from friday.storage import FridayStore
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
 PDF_TEXT_TIMEOUT_SECONDS = 30
+# Sandbox caps for the untrusted-PDF parser (Phase 1). The parser handles
+# attacker-controlled input, so it runs with a scrubbed environment (no Friday
+# secrets), a wall-clock timeout, a bounded extracted-text size, and — on POSIX
+# — hard memory/CPU rlimits so a malformed or hostile PDF cannot exhaust the host.
+PDF_PARSE_MAX_PAGES = 1000
+PDF_PARSE_MAX_OUTPUT_BYTES = 20 * 1024 * 1024
+PDF_PARSE_MEMORY_LIMIT_BYTES = 1024 * 1024 * 1024
+# Environment variables the parser binary may legitimately need to locate
+# libraries/fonts. Everything else (API keys, tokens, network config) is dropped.
+_PARSER_ENV_ALLOWLIST = (
+    "PATH",
+    "SYSTEMROOT",
+    "WINDIR",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+    "LD_LIBRARY_PATH",
+    "DYLD_LIBRARY_PATH",
+)
 
 
 @dataclass(frozen=True)
@@ -255,21 +281,72 @@ def fetch_url_text(url: str) -> str:
         return response.read(2 * 1024 * 1024).decode("utf-8", errors="replace")
 
 
-def extract_pdf_text_pages(path: Path) -> list[str]:
+def _scrubbed_parser_env() -> dict[str, str]:
+    """A minimal environment for the parser: only library/font lookup vars, never
+    Friday's credentials or network configuration."""
+    return {key: os.environ[key] for key in _PARSER_ENV_ALLOWLIST if key in os.environ}
+
+
+def _parser_preexec(memory_limit_bytes: int, cpu_seconds: int):
+    """POSIX preexec that caps the parser's address space and CPU before exec.
+    Returns ``None`` on platforms without ``resource`` (e.g. Windows)."""
+    if _resource is None:
+        return None
+
+    def _apply() -> None:  # pragma: no cover - runs only in the POSIX child
+        _resource.setrlimit(_resource.RLIMIT_AS, (memory_limit_bytes, memory_limit_bytes))
+        _resource.setrlimit(_resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+
+    return _apply
+
+
+def _read_capped(path: Path, max_bytes: int) -> str:
+    """Read at most ``max_bytes`` of extracted text so a PDF that explodes into a
+    huge text stream cannot blow up Friday's memory downstream."""
+    with path.open("rb") as handle:
+        raw = handle.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raw = raw[:max_bytes]
+    return raw.decode("utf-8", errors="replace")
+
+
+def extract_pdf_text_pages(
+    path: Path,
+    *,
+    timeout_seconds: float = PDF_TEXT_TIMEOUT_SECONDS,
+    max_output_bytes: int = PDF_PARSE_MAX_OUTPUT_BYTES,
+    memory_limit_bytes: int = PDF_PARSE_MEMORY_LIMIT_BYTES,
+) -> list[str]:
+    """Extract page text from an untrusted PDF in a sandboxed subprocess.
+
+    The PDF is attacker-controlled input, so the parser (``pdftotext``) runs
+    out-of-process with: a scrubbed environment, a wall-clock timeout, a bounded
+    page count, a capped output size, and — on POSIX — hard memory/CPU rlimits.
+    Failures raise; the caller records them as a blocked artifact (PLAN §12).
+    """
     executable = shutil.which("pdftotext")
     if executable is None:
         raise RuntimeError("pdftotext_not_found")
 
+    run_kwargs: dict[str, object] = {
+        "check": True,
+        "timeout": timeout_seconds,
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "env": _scrubbed_parser_env(),
+    }
+    preexec = _parser_preexec(memory_limit_bytes, int(timeout_seconds) + 5)
+    if preexec is not None:
+        run_kwargs["preexec_fn"] = preexec
+
     with tempfile.TemporaryDirectory() as tmp:
         output_path = Path(tmp) / "paper.txt"
         subprocess.run(
-            [executable, "-f", "1", "-l", "1000", "-layout", str(path), str(output_path)],
-            check=True,
-            timeout=PDF_TEXT_TIMEOUT_SECONDS,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            [executable, "-q", "-f", "1", "-l", str(PDF_PARSE_MAX_PAGES), "-layout", str(path), str(output_path)],
+            **run_kwargs,
         )
-        text = output_path.read_text(encoding="utf-8", errors="replace")
+        text = _read_capped(output_path, max_output_bytes)
     return text.split("\f")
 
 

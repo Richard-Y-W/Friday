@@ -3316,5 +3316,41 @@ def _write_json(path, value):
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
+class LlmCommandTests(unittest.TestCase):
+    def run_cli(self, args, tmp_path):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main([*args, "--data-dir", str(tmp_path / ".friday")])
+        return code, out.getvalue()
+
+    def _disable_all_roles(self, tmp_path):
+        # Set every role to 'none' so `llm status` never spawns a CLI subprocess.
+        for role in ("screener", "extractor", "composer", "verifier", "critic"):
+            self.run_cli(["settings", "set", f"llm.{role}_provider", "none"], tmp_path)
+
+    def test_llm_status_lists_roles_without_spawning(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._disable_all_roles(tmp_path)
+            code, output = self.run_cli(["llm", "status"], tmp_path)
+            self.assertEqual(code, 0)
+            for role in ("screener", "composer", "verifier"):
+                self.assertIn(role, output)
+
+    def test_llm_test_requires_wired_role(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._disable_all_roles(tmp_path)
+            code, output = self.run_cli(["llm", "test", "--role", "composer"], tmp_path)
+            self.assertEqual(code, 2)
+            self.assertIn("not wired", output)
+
+
 if __name__ == "__main__":
     unittest.main()

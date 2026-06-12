@@ -39,6 +39,8 @@ from friday.label_export import (
 )
 from friday.label_eval import build_label_evaluation
 from friday.label_review import LABEL_REVIEW_FILTERS, build_label_review_rows
+from friday.llm.config import ROLES as LLM_ROLES, build_router
+from friday.llm.types import LLMRequest
 from friday.pdf_ingestion import PdfIngestionResult, deep_read_source
 from friday.relevance import rank_candidates
 from friday.reporting import (
@@ -84,6 +86,7 @@ COMMAND_NAMES = {
     "research-run",
     "research-runs",
     "eval-suite",
+    "llm",
     "run-summary",
     "review-queue",
     "batches",
@@ -137,6 +140,8 @@ def main(
         return _handle_settings(args, data_dir)
     if args.command == "eval-suite":
         return _handle_eval_suite(args)
+    if args.command == "llm":
+        return _handle_llm(args, data_dir)
 
     store = FridayStore(data_dir / "friday.db")
     if args.command == "scan":
@@ -479,6 +484,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Suite to run: core, biomedical, natural-language, safety, or gold.",
     )
     eval_suite.add_argument("--format", choices=("text", "json"), default="text", help="Eval report output format.")
+
+    llm = subparsers.add_parser(
+        "llm",
+        help="Inspect or test the LLM role wiring (subscription CLIs, not API tokens).",
+    )
+    llm.add_argument("action", choices=("status", "test"), help="Show role wiring/availability or run one live generation.")
+    llm.add_argument("--role", choices=list(LLM_ROLES), help="Role to test (required for 'test').")
+    llm.add_argument("--prompt", help="Prompt for 'test'. Defaults to a tiny liveness check.")
+    llm.add_argument("--format", choices=("text", "json"), default="text", help="Output format.")
 
     run_summary = subparsers.add_parser("run-summary", help="Summarize the latest research run or batch.")
     run_summary_target = run_summary.add_mutually_exclusive_group(required=True)
@@ -1769,6 +1783,72 @@ def _handle_settings(args: argparse.Namespace, data_dir: Path) -> int:
     for key, value in flatten_settings(settings):
         print(f"{key}: {_setting_text(value)}")
     return 0
+
+
+def _handle_llm(args: argparse.Namespace, data_dir: Path) -> int:
+    settings = load_settings(data_dir)
+    router = build_router(settings)
+
+    if args.action == "status":
+        status = router.status()
+        rows = []
+        for role in LLM_ROLES:
+            info = status.roles.get(role, {})
+            rows.append(
+                {
+                    "role": role,
+                    "provider": info.get("provider", "none"),
+                    "model": info.get("model", "") or "(default)",
+                    "available": bool(info.get("available", False)),
+                    "reason": info.get("reason"),
+                }
+            )
+        if args.format == "json":
+            print(json.dumps({"roles": rows}, indent=2))
+            return 0
+        print("Friday LLM role wiring (subscription CLIs bill the usage window, not API tokens)")
+        print("")
+        for row in rows:
+            mark = "ok" if row["available"] else ("--" if row["provider"] == "none" else "DOWN")
+            line = f"  {row['role']:<10} {row['provider']:<11} {row['model']:<22} [{mark}]"
+            if row["reason"] and not row["available"] and row["provider"] != "none":
+                line += f"  {row['reason']}"
+            print(line)
+        return 0
+
+    # action == "test"
+    if not args.role:
+        print("llm test requires --role (one of: " + ", ".join(LLM_ROLES) + ")")
+        return 2
+    config = router.role_config(args.role)
+    if config is None or config.provider in (None, "none"):
+        print(f"role '{args.role}' is not wired to a provider (set llm.{args.role}_provider).")
+        return 2
+    prompt = args.prompt or "Reply with exactly one word: grounded"
+    response = router.generate(args.role, LLMRequest(prompt=prompt, system_prompt="Be terse.", max_tokens=64))
+    if args.format == "json":
+        print(
+            json.dumps(
+                {
+                    "role": args.role,
+                    "provider": response.provider,
+                    "model": response.model,
+                    "success": response.success,
+                    "text": response.text,
+                    "latency_ms": response.latency_ms,
+                    "tokens_used": response.tokens_used,
+                    "error": response.error,
+                },
+                indent=2,
+            )
+        )
+        return 0 if response.success else 1
+    if response.success:
+        print(f"[{args.role}] {response.provider}/{response.model} ok in {response.latency_ms}ms")
+        print(response.text)
+        return 0
+    print(f"[{args.role}] {response.provider}/{response.model} FAILED: {response.error}")
+    return 1
 
 
 def _handle_report(args: argparse.Namespace, store: FridayStore) -> int:

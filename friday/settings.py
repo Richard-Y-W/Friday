@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from friday.llm.config import default_llm_settings
+
 
 DEFAULT_SETTINGS: dict[str, dict[str, object]] = {
     "research": {
@@ -33,6 +35,9 @@ DEFAULT_SETTINGS: dict[str, dict[str, object]] = {
     "report": {
         "format": "markdown",
     },
+    # Per-role LLM wiring. Subscription CLIs (claude_cli / codex_cli) by default
+    # so generative leaves bill the user's usage window, never API tokens.
+    "llm": default_llm_settings(),
 }
 
 

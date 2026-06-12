@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from friday.llm.providers import AnthropicProvider, OllamaProvider, OpenAIProvider
+from friday.llm.providers import (
+    AnthropicProvider,
+    ClaudeCliProvider,
+    CodexCliProvider,
+    OllamaProvider,
+    OpenAIProvider,
+)
 from friday.llm.types import (
     LLMRequest,
     LLMResponse,
@@ -22,9 +28,18 @@ class RouterStatus:
 
 
 def default_providers() -> dict[ProviderName, Provider]:
-    """Construct the built-in providers. No network is touched here."""
+    """Construct the built-in providers. No network or subprocess is touched here.
+
+    ``claude_cli`` / ``codex_cli`` run against the user's Claude / ChatGPT
+    *subscription* (rolling usage window) via the local CLIs, never per-token API
+    credits — the preferred providers. ``anthropic`` / ``openai`` are the
+    API-key (token-billed) fallbacks, off unless a role is explicitly wired to
+    them.
+    """
     return {
         "ollama": OllamaProvider(),
+        "claude_cli": ClaudeCliProvider(),
+        "codex_cli": CodexCliProvider(),
         "openai": OpenAIProvider(),
         "anthropic": AnthropicProvider(),
     }
