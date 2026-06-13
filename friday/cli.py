@@ -45,6 +45,7 @@ from friday.llm.types import LLMRequest
 from friday.pdf_ingestion import PdfIngestionResult, deep_read_source
 from friday.query_planning import normalize_research_query
 from friday.relevance import rank_candidates
+from friday.report_composer import build_full_report_package_files
 from friday.reporting import (
     render_batch_report,
     render_batch_report_json,
@@ -616,9 +617,9 @@ def _build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--package", dest="package_dir", required=True, help="Writing package directory to compose from.")
     compose.add_argument(
         "--section",
-        choices=SECTION_CHOICES,
+        choices=(*SECTION_CHOICES, "report"),
         default="results",
-        help="Draft section to compose.",
+        help="Draft section to compose, or 'report' for a full report package.",
     )
     compose.add_argument("--output", required=True, help="Directory to write compose artifacts.")
     compose.add_argument(
@@ -2025,7 +2026,13 @@ def _handle_write(args: argparse.Namespace, store: FridayStore, data_dir: Path) 
 
 def _handle_compose(args: argparse.Namespace, data_dir: Path) -> int:
     try:
-        if args.llm:
+        if args.section == "report":
+            files = build_full_report_package_files(
+                Path(args.package_dir),
+                router=build_router(load_settings(data_dir)) if args.llm else None,
+                use_llm=args.llm,
+            )
+        elif args.llm:
             files = build_llm_compose_package_files(
                 Path(args.package_dir),
                 section=args.section,
@@ -2177,6 +2184,7 @@ def _emit_package_output(files: dict[str, str | bytes], output_dir: Path) -> Non
     output_dir.mkdir(parents=True, exist_ok=True)
     for filename, content in files.items():
         path = output_dir / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(content, bytes):
             path.write_bytes(content)
         else:

@@ -3238,6 +3238,45 @@ class CliTests(unittest.TestCase):
             used = json.loads((output_dir / "used_evidence.json").read_text(encoding="utf-8"))
             self.assertEqual(used["used_evidence"][0]["citations"], ["P1 p2", "P2 p2"])
 
+    def test_compose_report_exports_full_report_package(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "writing-package"
+            _write_compose_fixture_package(package_dir)
+            output_dir = tmp_path / "compose-report-output"
+
+            code, output = self.run_cli(
+                [
+                    "compose",
+                    "--package",
+                    str(package_dir),
+                    "--section",
+                    "report",
+                    "--output",
+                    str(output_dir),
+                ],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote compose package: {output_dir}", output)
+            self.assertTrue((output_dir / "report.md").exists())
+            self.assertTrue((output_dir / "report.pdf").read_bytes().startswith(b"%PDF-1.4"))
+            self.assertTrue((output_dir / "citation_audit.json").exists())
+            self.assertTrue((output_dir / "evidence_table.md").exists())
+            self.assertTrue((output_dir / "literature_table.md").exists())
+            self.assertTrue((output_dir / "sections" / "results" / "draft.md").exists())
+            report = (output_dir / "report.md").read_text(encoding="utf-8")
+            self.assertIn("# Friday Research Report", report)
+            self.assertIn("## Executive Summary", report)
+            self.assertIn("## Results", report)
+            self.assertIn("result evidence includes AUROC 0.91", report)
+            audit = json.loads((output_dir / "citation_audit.json").read_text(encoding="utf-8"))
+            self.assertEqual(audit["status"], "pass")
+
     def test_compose_llm_writes_planner_and_composer_audit_without_real_provider(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory

@@ -89,6 +89,14 @@ Each package includes:
 - `writing.json`
 - source, screening, supported-paragraph, blocked-paragraph, and material-gap audit files
 
+To turn a writing package into a polished, sectioned report package, run:
+
+```bash
+friday compose --package .friday/reports/<query-slug>-<timestamp> --section report --output ./composed-report --llm
+```
+
+The full report composer writes `report.md`, `report.pdf`, `citation_audit.json`, evidence/literature tables, and per-section compose artifacts under `sections/`.
+
 ## Settings
 
 Show current defaults:

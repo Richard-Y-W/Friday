@@ -11,6 +11,7 @@ from friday.compose_agent import (
     load_writing_package,
 )
 from friday.llm.types import LLMResponse
+from friday.report_composer import build_full_report_package_files
 
 
 class ComposeAgentTests(unittest.TestCase):
@@ -818,6 +819,40 @@ class ComposeAgentTests(unittest.TestCase):
             self.assertNotIn("learning objective", json.dumps(composer_prompt["atomic_evidence_rows"]))
             self.assertIn("88 percent sensitivity", json.dumps(composer_prompt["atomic_evidence_rows"]))
             self.assertEqual([role for role, _request in router.calls], ["planner", "composer", "verifier"])
+
+    def test_full_report_package_assembles_sections_pdf_and_audits(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report.md", files)
+            self.assertTrue(files["report.pdf"].startswith(b"%PDF-1.4"))
+            self.assertIn("citation_audit.json", files)
+            self.assertIn("report_manifest.json", files)
+            self.assertIn("evidence_table.md", files)
+            self.assertIn("literature_table.md", files)
+            self.assertIn("sections/results/draft.md", files)
+            report = files["report.md"]
+            self.assertIn("# Friday Research Report", report)
+            self.assertIn("## Executive Summary", report)
+            self.assertIn("## Background", report)
+            self.assertIn("## Methods", report)
+            self.assertIn("## Results", report)
+            self.assertIn("## Limitations", report)
+            self.assertIn("## Evidence Table", report)
+            self.assertIn("## Literature", report)
+            self.assertIn("AUROC 0.91", report)
+            self.assertIn("[P1 p2; P2 p2]", report)
+            self.assertIn("MATERIAL GAP: No dedicated background evidence was available in this writing package.", report)
+            self.assertIn("MATERIAL GAP: No supported limitation evidence is available in this writing package.", report)
+            self.assertIn("MATERIAL GAP: No page-anchored limitation evidence is available in this batch.", report)
+            audit = json.loads(files["citation_audit.json"])
+            self.assertEqual(audit["artifact_type"], "full_report_citation_audit")
+            self.assertEqual(audit["status"], "pass")
+            self.assertEqual(audit["sections"]["results"]["claim_audit_status"], "pass")
+            self.assertIn("P1 p2", audit["used_citations"])
 
 
 class FakeRouter:
