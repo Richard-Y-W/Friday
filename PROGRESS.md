@@ -15,7 +15,7 @@ Tracks the build plan in [PLAN.md](PLAN.md). Phase numbers match §11 of the pla
 | 4.1 | Executive-summary synthesis + quality gate | ◐ in progress |
 | 4.2 | Reader-facing report polish: typography, sections, citations, plain-English synthesis | ◐ in progress |
 | 5 | Tier A + Tier B faithfulness gate | ◐ in progress |
-| 6 | Tier C critics (faithfulness + prose-quality) + revise loop | ◐ in progress |
+| 6 | Tier C critic panel (faithfulness + prose + structure) + revise loop | ◐ in progress |
 | 7 | Trust score + verdict→action | ◐ in progress |
 | 8 | Human feedback capture (`friday review-draft`) | ◐ in progress |
 | 9 | Feedback flywheel (eval-gated) | ◐ in progress |
@@ -253,47 +253,64 @@ Initial implementation:
   as `proved`, `clinically definitive`, `standard of care`, `mortality benefit`,
   causal claims, deployment claims, and practice-changing language when those
   terms are not present in the cited evidence text.
+- Full report packages now export `report_semantic_faithfulness_audit.json`.
+  When a verifier role is configured, Friday sends typed claim units, citation
+  evidence, evidence rows, and the lexical faithfulness audit to the verifier
+  and records per-claim semantic verdicts.
+- Full-report LLM rewrites and critic revisions are rejected when the semantic
+  verifier returns unsupported, overstated, causal-overreach, or citation-
+  mismatch issues. If the verifier is unavailable, Friday does not block the
+  deterministic spine, but trust stays at human-review rather than publishable.
 - Full-report LLM rewrites are now accepted only when citation audit,
-  prose-quality audit, and faithfulness audit all pass. If faithfulness fails,
-  Friday keeps the deterministic report and records `faithfulness_failed` in
+  prose-quality audit, lexical faithfulness audit, plan-adherence audit, and
+  available semantic verifier all pass. If a required gate fails, Friday keeps
+  the deterministic report and records the gate-specific reason in
   `report_composer_audit.json`.
 - `report_manifest.json` records `faithfulness_status`,
-  `faithfulness_tier_a_status`, and `faithfulness_tier_b_status`.
+  `faithfulness_tier_a_status`, `faithfulness_tier_b_status`, and
+  `semantic_faithfulness_status`.
+- Draft review queues now surface semantic verifier issues directly from
+  `report_semantic_faithfulness_audit.json`.
 
 Still open:
 
-- Tier B is lexical, not semantic entailment. It is a conservative guardrail,
-  not a substitute for the independent verifier/critic loop in Phase 6.
+- Semantic verification depends on the configured verifier role, so skipped
+  verifier runs remain human-review rather than publishable.
 - The overstatement detector is rule-based and should be calibrated with real
   reports; it intentionally favors review over accepting broad clinical or
   causal claims.
 - The gate needs more real-report calibration once we run additional live
   writing packages across biomedical, math, and general science topics.
 
-## Phase 6 note (in progress) — Tier C critic + revise loop
+## Phase 6 note (mostly done) — Tier C critic panel + revise loop
 
-Initial implementation:
+Implemented:
 
 - Full-report LLM composition can now call the configured `critic` role after
   the candidate passes citation, prose-quality, and faithfulness gates.
-- Critic prompts receive only the report markdown, discourse plan, audit
-  summaries, evidence rows, and material gaps. They are instructed not to browse
-  or call tools and must return JSON.
-- Critic artifacts are exported as `report_critic_prompt.json` and
-  `report_critic_audit.json`.
-- If the critic rejects a candidate, Friday asks the `composer` role for one
-  evidence-bound revision and exports `report_revision_prompt.json`,
-  `report_revised_draft.md`, and `report_revision_audit.json`.
-- Revised reports are accepted only after the citation audit, prose-quality
-  audit, faithfulness audit, and optional second critic pass. Otherwise Friday
-  falls back to the deterministic report and records `critic_revision_failed`.
+- The single generic critic is now split into faithfulness, prose, and
+  structure critics. Each critic gets a scoped prompt and writes its own audit:
+  `report_faithfulness_critic_audit.json`,
+  `report_prose_critic_audit.json`, and
+  `report_structure_critic_audit.json`.
+- The combined panel verdict is exported as `report_critic_panel_audit.json`.
+  The legacy `report_critic_prompt.json` and `report_critic_audit.json` files
+  remain available for older review/feedback commands.
+- If the panel rejects a candidate, Friday asks the `composer` role for an
+  evidence-bound revision. A second revision attempt is allowed when the first
+  revision passes deterministic gates but is still rejected by the critic panel.
+- Attempt-specific files are exported as
+  `report_revision_1_critic_panel_audit.json`,
+  `report_revision_2_critic_panel_audit.json`, etc., while
+  `report_revision_audit.json` records the final attempt count and status.
+- Draft-review queues now flatten nested critic-panel issues so humans can see
+  whether faithfulness, prose, or structure caused the rejection.
 
 Still open:
 
-- Multi-critic panels with separate faithfulness/prose reviewers.
-- More than one revision attempt.
-- Using critic outputs to create durable human-review tasks and style/evidence
-  feedback for future runs.
+- More real-run calibration of critic prompts and thresholds.
+- Feeding critic outcomes into durable style/evidence feedback proposals for
+  future runs.
 
 ## Phase 7 note (in progress) — trust score + verdict action
 

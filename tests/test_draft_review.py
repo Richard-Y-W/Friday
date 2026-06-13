@@ -22,11 +22,17 @@ class DraftReviewTests(unittest.TestCase):
             self.assertEqual(feedback["human_feedback"], {})
             self.assertEqual(feedback["review_items"][0]["rule"], "critic_not_run")
             self.assertIn("global deployment", json.dumps(feedback["review_items"]))
+            semantic_items = [
+                item for item in feedback["review_items"] if item.get("source") == "report_semantic_faithfulness_audit"
+            ]
+            self.assertTrue(semantic_items)
+            self.assertEqual(semantic_items[0]["rule"], "overstated")
 
             queue = files["review_queue.md"]
             self.assertIn("# Draft Review Queue", queue)
             self.assertIn("Trust verdict: needs_review", queue)
             self.assertIn("R1", queue)
+            self.assertIn("semantic utility claim", queue)
 
     def test_build_draft_feedback_captures_human_decision(self):
         with TemporaryDirectory() as tmp:
@@ -46,6 +52,48 @@ class DraftReviewTests(unittest.TestCase):
             self.assertEqual(feedback["human_feedback"]["reviewer"], "byung")
             self.assertIn("unsupported", feedback["human_feedback"]["note"])
             self.assertIn("Human decision: bad_evidence", files["review_queue.md"])
+
+    def test_build_draft_feedback_surfaces_nested_critic_panel_issues(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "report-package"
+            _write_review_fixture_package(package_dir)
+            _write_json(
+                package_dir / "report_critic_panel_audit.json",
+                {
+                    "status": "fallback",
+                    "failed_critic_kinds": ["prose"],
+                    "audits": [
+                        {
+                            "critic_kind": "faithfulness",
+                            "status": "pass",
+                            "issues": [],
+                        },
+                        {
+                            "critic_kind": "prose",
+                            "status": "fallback",
+                            "issues": [
+                                {
+                                    "severity": "important",
+                                    "rule": "prose_clarity",
+                                    "sentence": "Across 3 papers, claim evidence includes...",
+                                    "detail": "Rewrite this as readable synthesis.",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            files = build_draft_feedback_files(package_dir)
+
+            feedback = json.loads(files["draft_feedback.json"])
+            panel_items = [
+                item for item in feedback["review_items"] if item.get("source") == "report_critic_panel_audit"
+            ]
+            self.assertTrue(panel_items)
+            self.assertEqual(panel_items[0]["critic_kind"], "prose")
+            self.assertEqual(panel_items[0]["rule"], "prose_clarity")
+            self.assertIn("Across 3 papers", files["review_queue.md"])
 
 
 def _write_review_fixture_package(package_dir: Path) -> None:
@@ -74,6 +122,20 @@ def _write_review_fixture_package(package_dir: Path) -> None:
                     "rule": "weak_evidence_overlap",
                     "sentence": "One paper proved global deployment [1, p. 2].",
                     "missing_terms": ["global", "deployment"],
+                }
+            ],
+        },
+    )
+    _write_json(
+        package_dir / "report_semantic_faithfulness_audit.json",
+        {
+            "status": "fallback",
+            "issues": [
+                {
+                    "claim_unit_id": "C4",
+                    "severity": "critical",
+                    "rule": "overstated",
+                    "detail": "The semantic utility claim is broader than the cited evidence.",
                 }
             ],
         },

@@ -1577,6 +1577,52 @@ class ComposeAgentTests(unittest.TestCase):
             manifest = json.loads(files["report_manifest.json"])
             self.assertEqual(manifest["faithfulness_status"], "pass")
 
+    def test_full_report_exports_semantic_faithfulness_audit_when_verifier_configured(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "verifier": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=json.dumps(
+                            {
+                                "verdict": "pass",
+                                "summary": "All claim units are supported by cited evidence.",
+                                "claim_verdicts": [
+                                    {
+                                        "claim_unit_id": "C1",
+                                        "verdict": "supported",
+                                        "rationale": "The cited evidence describes spectra classifiers.",
+                                    }
+                                ],
+                                "issues": [],
+                            }
+                        ),
+                    )
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router)
+
+            self.assertIn("report_semantic_verifier_prompt.json", files)
+            self.assertIn("report_semantic_faithfulness_audit.json", files)
+            audit = json.loads(files["report_semantic_faithfulness_audit.json"])
+            self.assertEqual(audit["artifact_type"], "report_semantic_faithfulness_audit")
+            self.assertEqual(audit["status"], "pass")
+            self.assertEqual(audit["reason"], "semantic_verifier_passed")
+            self.assertEqual(audit["claim_verdicts"][0]["verdict"], "supported")
+            prompt = json.loads(files["report_semantic_verifier_prompt.json"])
+            payload = json.loads(prompt["prompt"])
+            self.assertIn("report_claim_units", payload)
+            self.assertIn("citation_evidence", payload)
+            self.assertIn("lexical_faithfulness_audit", payload)
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["semantic_faithfulness_status"], "pass")
+            self.assertEqual([role for role, _request in router.calls], ["verifier"])
+
     def test_full_report_exports_typed_claim_units(self):
         with TemporaryDirectory() as tmp:
             package_dir = Path(tmp) / "package"
@@ -1657,6 +1703,63 @@ class ComposeAgentTests(unittest.TestCase):
             manifest = json.loads(files["report_manifest.json"])
             self.assertEqual(manifest["report_source"], "deterministic")
 
+    def test_full_report_llm_falls_back_when_semantic_verifier_rejects_candidate(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=_valid_full_report_text(
+                            result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                        ),
+                    ),
+                    "verifier": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=json.dumps(
+                            {
+                                "verdict": "fail",
+                                "summary": "The result claim overstates what the cited evidence supports.",
+                                "claim_verdicts": [
+                                    {
+                                        "claim_unit_id": "C4",
+                                        "verdict": "overstated",
+                                        "rationale": "The evidence reports metrics but not clinical utility.",
+                                    }
+                                ],
+                                "issues": [
+                                    {
+                                        "claim_unit_id": "C4",
+                                        "severity": "critical",
+                                        "rule": "overstated",
+                                        "detail": "The cited evidence does not establish clinical utility.",
+                                    }
+                                ],
+                            }
+                        ),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_candidate_semantic_faithfulness_audit.json", files)
+            candidate_audit = json.loads(files["report_candidate_semantic_faithfulness_audit.json"])
+            self.assertEqual(candidate_audit["status"], "fallback")
+            self.assertEqual(candidate_audit["reason"], "semantic_verifier_rejected")
+            self.assertNotEqual(files["report.md"], files["report_llm_draft.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "fallback")
+            self.assertEqual(report_audit["reason"], "semantic_faithfulness_failed")
+            self.assertEqual(report_audit["candidate_semantic_faithfulness_status"], "fallback")
+            self.assertEqual(report_audit["final_report_source"], "deterministic")
+            self.assertEqual([role for role, _request in router.calls], ["composer", "verifier"])
+
     def test_full_report_llm_critic_revises_candidate_before_acceptance(self):
         with TemporaryDirectory() as tmp:
             package_dir = Path(tmp) / "package"
@@ -1700,12 +1803,11 @@ class ComposeAgentTests(unittest.TestCase):
                                 }
                             ),
                         ),
-                        LLMResponse(
-                            provider="codex_cli",
-                            model="",
-                            success=True,
-                            text=json.dumps({"verdict": "pass", "summary": "Revision is readable and evidence-bound.", "issues": []}),
-                        ),
+                        _critic_pass_response("Faithfulness is evidence-bound."),
+                        _critic_pass_response("Structure is complete."),
+                        _critic_pass_response("Revision is faithful."),
+                        _critic_pass_response("Revision is readable."),
+                        _critic_pass_response("Revision structure is complete."),
                     ],
                 }
             )
@@ -1714,20 +1816,94 @@ class ComposeAgentTests(unittest.TestCase):
 
             self.assertIn("report_critic_prompt.json", files)
             self.assertIn("report_critic_audit.json", files)
+            self.assertIn("report_faithfulness_critic_audit.json", files)
+            self.assertIn("report_prose_critic_audit.json", files)
+            self.assertIn("report_structure_critic_audit.json", files)
+            self.assertIn("report_critic_panel_audit.json", files)
             self.assertIn("report_revision_prompt.json", files)
             self.assertIn("report_revised_draft.md", files)
-            critic_prompt = json.loads(files["report_critic_prompt.json"])
+            critic_prompt = json.loads(files["report_prose_critic_prompt.json"])
             critic_payload = json.loads(critic_prompt["prompt"])
             self.assertIn("report_claim_units", critic_payload)
             self.assertTrue(any(unit["claim_type"] == "synthesis" for unit in critic_payload["report_claim_units"]["claim_units"]))
+            panel = json.loads(files["report_critic_panel_audit.json"])
+            self.assertEqual(panel["status"], "fallback")
+            self.assertEqual([audit["critic_kind"] for audit in panel["audits"]], ["faithfulness", "prose", "structure"])
+            self.assertEqual(panel["failed_critic_kinds"], ["prose"])
             self.assertIn("In plain terms, two papers reported AUROC 0.91", files["report.md"])
             report_audit = json.loads(files["report_composer_audit.json"])
             self.assertEqual(report_audit["status"], "pass")
             self.assertEqual(report_audit["reason"], "critic_revision_accepted")
             self.assertEqual(report_audit["final_report_source"], "llm_revised")
+            self.assertEqual(report_audit["critic_panel_status"], "fallback")
+            self.assertEqual(report_audit["revision_critic_panel_status"], "pass")
             revision_audit = json.loads(files["report_revision_audit.json"])
             self.assertEqual(revision_audit["status"], "pass")
-            self.assertEqual([role for role, _request in router.calls], ["composer", "critic", "composer", "critic"])
+            self.assertEqual(revision_audit["attempt_count"], 1)
+            self.assertEqual(
+                [role for role, _request in router.calls],
+                ["composer", "critic", "critic", "critic", "composer", "critic", "critic", "critic"],
+            )
+
+    def test_full_report_llm_allows_second_revision_attempt_after_panel_rejects_first_revision(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": [
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="The result evidence reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="Two papers reported performance metrics, including AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                    ],
+                    "critic": [
+                        _critic_pass_response("Candidate is faithful."),
+                        _critic_fail_response("prose_clarity", "Candidate prose is too raw."),
+                        _critic_pass_response("Candidate structure is complete."),
+                        _critic_pass_response("First revision is faithful."),
+                        _critic_pass_response("First revision is readable."),
+                        _critic_fail_response("report_structure", "First revision has weak section flow."),
+                        _critic_pass_response("Second revision is faithful."),
+                        _critic_pass_response("Second revision is readable."),
+                        _critic_pass_response("Second revision structure is complete."),
+                    ],
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("Two papers reported performance metrics", files["report.md"])
+            self.assertIn("report_revision_1_critic_panel_audit.json", files)
+            self.assertIn("report_revision_2_critic_panel_audit.json", files)
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "pass")
+            self.assertEqual(report_audit["reason"], "critic_revision_accepted")
+            self.assertEqual(report_audit["revision_attempt_count"], 2)
+            revision_audit = json.loads(files["report_revision_audit.json"])
+            self.assertEqual(revision_audit["status"], "pass")
+            self.assertEqual(revision_audit["attempt_count"], 2)
+            self.assertEqual(revision_audit["critic_panel_status"], "pass")
 
     def test_full_report_llm_falls_back_when_critic_revision_fails_gates(self):
         with TemporaryDirectory() as tmp:
@@ -1753,18 +1929,11 @@ class ComposeAgentTests(unittest.TestCase):
                             ),
                         ),
                     ],
-                    "critic": LLMResponse(
-                        provider="codex_cli",
-                        model="",
-                        success=True,
-                        text=json.dumps(
-                            {
-                                "verdict": "fail",
-                                "summary": "The report needs revision.",
-                                "issues": [{"severity": "important", "rule": "faithfulness"}],
-                            }
-                        ),
-                    ),
+                    "critic": [
+                        _critic_fail_response("faithfulness", "The report needs revision."),
+                        _critic_pass_response("Prose is acceptable."),
+                        _critic_pass_response("Structure is acceptable."),
+                    ],
                 }
             )
 
@@ -1812,12 +1981,24 @@ class ComposeAgentTests(unittest.TestCase):
                             result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
                         ),
                     ),
-                    "critic": LLMResponse(
+                    "verifier": LLMResponse(
                         provider="codex_cli",
                         model="",
                         success=True,
-                        text=json.dumps({"verdict": "pass", "summary": "Evidence-bound and readable.", "issues": []}),
+                        text=json.dumps(
+                            {
+                                "verdict": "pass",
+                                "summary": "Claim units are supported.",
+                                "claim_verdicts": [{"claim_unit_id": "C4", "verdict": "supported"}],
+                                "issues": [],
+                            }
+                        ),
                     ),
+                    "critic": [
+                        _critic_pass_response("Evidence-bound."),
+                        _critic_pass_response("Readable."),
+                        _critic_pass_response("Structure complete."),
+                    ],
                 }
             )
 
@@ -1830,6 +2011,7 @@ class ComposeAgentTests(unittest.TestCase):
             self.assertIn("critic_passed", trust["reasons"])
             manifest = json.loads(files["report_manifest.json"])
             self.assertEqual(manifest["trust_verdict"], "publishable")
+            self.assertEqual(manifest["semantic_faithfulness_status"], "pass")
 
     def test_report_trust_score_blocks_failed_required_gate(self):
         trust = build_report_trust_score(
@@ -1856,6 +2038,30 @@ class FakeRouter:
     def generate(self, role, request):
         self.calls.append((role, request))
         return self.responses[role].pop(0)
+
+
+def _critic_pass_response(summary: str) -> LLMResponse:
+    return LLMResponse(
+        provider="codex_cli",
+        model="",
+        success=True,
+        text=json.dumps({"verdict": "pass", "summary": summary, "issues": []}),
+    )
+
+
+def _critic_fail_response(rule: str, summary: str) -> LLMResponse:
+    return LLMResponse(
+        provider="codex_cli",
+        model="",
+        success=True,
+        text=json.dumps(
+            {
+                "verdict": "fail",
+                "summary": summary,
+                "issues": [{"severity": "important", "rule": rule, "detail": summary}],
+            }
+        ),
+    )
 
 
 def _valid_full_report_text(*, result_sentence: str) -> str:

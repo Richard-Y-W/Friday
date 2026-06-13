@@ -100,9 +100,22 @@ def _build_review_items(package_dir: Path, trust_score: dict[str, Any]) -> list[
     )
     raw_items.extend(
         _issue_items(
+            _load_json(package_dir / "report_semantic_faithfulness_audit.json"),
+            source="report_semantic_faithfulness_audit",
+            default_severity="blocking",
+        )
+    )
+    raw_items.extend(
+        _issue_items(
             _load_json(package_dir / "report_critic_audit.json"),
             source="report_critic_audit",
             default_severity="important",
+        )
+    )
+    raw_items.extend(
+        _critic_panel_issue_items(
+            _load_json(package_dir / "report_critic_panel_audit.json"),
+            source="report_critic_panel_audit",
         )
     )
     raw_items.extend(
@@ -117,6 +130,12 @@ def _build_review_items(package_dir: Path, trust_score: dict[str, Any]) -> list[
             _load_json(package_dir / "report_revision_critic_audit.json"),
             source="report_revision_critic_audit",
             default_severity="important",
+        )
+    )
+    raw_items.extend(
+        _critic_panel_issue_items(
+            _load_json(package_dir / "report_revision_critic_audit.json"),
+            source="report_revision_critic_audit",
         )
     )
     raw_items.extend(_citation_items(_load_json(package_dir / "citation_audit.json")))
@@ -174,6 +193,17 @@ def _issue_items(audit: dict[str, Any], *, source: str, default_severity: str) -
                 "status": status,
             }
         )
+    return items
+
+
+def _critic_panel_issue_items(audit: dict[str, Any], *, source: str) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for critic_audit in audit.get("audits", []):
+        if not isinstance(critic_audit, dict):
+            continue
+        critic_kind = str(critic_audit.get("critic_kind") or "unknown")
+        for item in _issue_items(critic_audit, source=source, default_severity="important"):
+            items.append({**item, "critic_kind": critic_kind})
     return items
 
 
@@ -284,9 +314,14 @@ def _severity_for_rule(rule: str, *, default: str = "important") -> str:
     if rule in {
         "citation_audit_failed",
         "faithfulness_failed",
+        "semantic_faithfulness_failed",
         "tier_a_failed",
         "unknown_citation",
         "uncited_factual_sentence",
+        "overstated",
+        "unsupported",
+        "causal_overreach",
+        "citation_mismatch",
     }:
         return "blocking"
     if rule in {"tier_b_failed", "weak_evidence_overlap", "prose_quality_failed"}:
@@ -304,6 +339,11 @@ def _prompt_for_rule(rule: str) -> str:
         "citation_audit_failed": "Citation checks failed; verify every factual sentence has a valid paper/page marker.",
         "unknown_citation": "A citation marker was not found in the evidence map; repair or remove the sentence.",
         "faithfulness_failed": "The report contains claims that may not be supported by cited evidence.",
+        "semantic_faithfulness_failed": "The semantic verifier rejected one or more report claims.",
+        "overstated": "A claim may be broader than the cited evidence supports.",
+        "unsupported": "A report claim may not be supported by its cited evidence.",
+        "causal_overreach": "A causal claim may go beyond the cited evidence.",
+        "citation_mismatch": "A claim may be attached to a citation that does not support it.",
         "tier_a_failed": "A hard citation or material-gap rule failed; do not publish without repair.",
         "tier_b_failed": "A cited sentence has weak overlap with its evidence; verify the claim manually.",
         "weak_evidence_overlap": "Check whether this sentence is actually supported by the cited evidence.",
