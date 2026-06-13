@@ -11,7 +11,12 @@ from friday.compose_agent import (
     load_writing_package,
 )
 from friday.llm.types import LLMResponse
-from friday.report_composer import build_full_report_package_files
+from friday.report_composer import (
+    build_full_report_package_files,
+    build_report_faithfulness_audit,
+    build_report_prose_quality_audit,
+    build_report_trust_score,
+)
 
 
 class ComposeAgentTests(unittest.TestCase):
@@ -844,7 +849,7 @@ class ComposeAgentTests(unittest.TestCase):
             self.assertIn("## Evidence Table", report)
             self.assertIn("## Literature", report)
             self.assertIn("AUROC 0.91", report)
-            self.assertIn("[P1 p2; P2 p2]", report)
+            self.assertIn("[1, p. 2; 2, p. 2]", report)
             self.assertIn("MATERIAL GAP: No dedicated background evidence was available in this writing package.", report)
             self.assertIn("MATERIAL GAP: No supported limitation evidence is available in this writing package.", report)
             self.assertIn("MATERIAL GAP: No page-anchored limitation evidence is available in this batch.", report)
@@ -853,6 +858,768 @@ class ComposeAgentTests(unittest.TestCase):
             self.assertEqual(audit["status"], "pass")
             self.assertEqual(audit["sections"]["results"]["claim_audit_status"], "pass")
             self.assertIn("P1 p2", audit["used_citations"])
+
+    def test_full_report_uses_reader_facing_citations_and_readable_synthesis(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            report = files["report.md"]
+            self.assertNotIn("evidence includes", report.lower())
+            self.assertNotIn("[P1 p2", report)
+            self.assertIn("[1, p. 2; 2, p. 2]", report)
+            self.assertIn(
+                "- **Results:** Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].",
+                report,
+            )
+            self.assertIn("\n---\n\n## Background\n", report)
+            self.assertIn("\n---\n\n## Evidence Table\n", report)
+
+            audit = json.loads(files["citation_audit.json"])
+            self.assertEqual(audit["status"], "pass")
+            self.assertIn("P1 p2", audit["used_citations"])
+            self.assertIn("P2 p2", audit["used_citations"])
+
+    def test_full_report_pdf_uses_styled_section_fonts_and_heading_color(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            pdf = files["report.pdf"]
+            self.assertIn(b"/BaseFont /Helvetica-Bold", pdf)
+            self.assertIn(b"0.10 0.35 0.52 rg", pdf)
+            self.assertIn(b"/F2 14 Tf", pdf)
+
+    def test_full_report_prefers_atomic_rows_for_readable_fallback_body(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P1 p2",
+                            "text": "The model achieved AUROC 0.91.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                        {
+                            "row_id": "E2",
+                            "evidence_type": "result",
+                            "paper": "P2",
+                            "citation": "P2 p2",
+                            "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                    ],
+                    "tables": {
+                        "results": [
+                            {
+                                "row_id": "E1",
+                                "evidence_type": "result",
+                                "paper": "P1",
+                                "citation": "P1 p2",
+                                "text": "The model achieved AUROC 0.91.",
+                                "support_status": "SUPPORTED",
+                                "quality_label": "clean",
+                            },
+                            {
+                                "row_id": "E2",
+                                "evidence_type": "result",
+                                "paper": "P2",
+                                "citation": "P2 p2",
+                                "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                                "support_status": "SUPPORTED",
+                                "quality_label": "clean",
+                            },
+                        ]
+                    },
+                },
+            )
+
+            files = build_full_report_package_files(package_dir)
+
+            report = files["report.md"]
+            self.assertIn("One paper reported that the model achieved AUROC 0.91 [1, p. 2].", report)
+            self.assertIn(
+                "A second paper reported that the classifier detected resistant isolates with 88 percent sensitivity [2, p. 2].",
+                report,
+            )
+            self.assertNotIn("Two papers reported AUROC 0.91 and sensitivity 88 percent", report)
+
+    def test_full_report_exports_discourse_plan_and_connected_atomic_paragraphs(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P1 p2",
+                            "text": "The model achieved AUROC 0.91.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                        {
+                            "row_id": "E2",
+                            "evidence_type": "result",
+                            "paper": "P2",
+                            "citation": "P2 p2",
+                            "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                    ]
+                },
+            )
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report_discourse_plan.json", files)
+            plan = json.loads(files["report_discourse_plan.json"])
+            self.assertEqual(plan["artifact_type"], "report_discourse_plan")
+            self.assertEqual(plan["sections"]["results"]["moves"][0]["kind"], "evidence_cluster")
+            self.assertEqual(plan["sections"]["results"]["moves"][0]["row_ids"], ["E1", "E2"])
+            self.assertEqual(plan["sections"]["results"]["moves"][0]["citations"], ["P1 p2", "P2 p2"])
+
+            report = files["report.md"]
+            self.assertIn(
+                "- **Results:** One paper reported that the model achieved AUROC 0.91 [1, p. 2].",
+                report,
+            )
+            self.assertIn(
+                "The results section draws on two page-anchored findings. "
+                "One paper reported that the model achieved AUROC 0.91 [1, p. 2]. "
+                "A second paper reported that the classifier detected resistant isolates with 88 percent sensitivity [2, p. 2].",
+                report,
+            )
+
+    def test_full_report_atomic_row_rewrite_does_not_create_studys_study(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "limitation",
+                            "paper": "P1",
+                            "citation": "P1 p15",
+                            "text": "Our study did have its limitations.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        }
+                    ]
+                },
+            )
+
+            files = build_full_report_package_files(package_dir)
+
+            report = files["report.md"]
+            self.assertIn("One paper noted that the study had limitations [1, p. 15].", report)
+            self.assertNotIn("study's study", report)
+
+    def test_report_prose_quality_audit_flags_internal_syntax_and_dump_phrases(self):
+        report = (
+            "# Friday Research Report\n\n"
+            "## Results\n\n"
+            "Across 3 papers, claim evidence includes in this work, we present a model [P1 p2; P2 p3].\n"
+        )
+
+        audit = build_report_prose_quality_audit(report)
+
+        self.assertEqual(audit["artifact_type"], "report_prose_quality_audit")
+        self.assertEqual(audit["status"], "fallback")
+        self.assertEqual(
+            [issue["rule"] for issue in audit["issues"]],
+            [
+                "missing_required_heading",
+                "internal_citation_syntax",
+                "raw_evidence_dump_phrase",
+                "source_author_voice",
+            ],
+        )
+
+    def test_report_prose_quality_audit_consumes_applied_feedback_blocked_phrases(self):
+        with TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / ".friday"
+            _write_feedback_rule_store(
+                data_dir,
+                value="clinically definitive",
+                reason="Human feedback said this phrasing was too broad.",
+            )
+            report = (
+                "# Friday Research Report\n\n"
+                "## Executive Summary\n\n"
+                "- **Results:** One paper reported a clinically definitive signal [1, p. 2].\n\n"
+                "## Background\n\n"
+                "One paper described spectra classifiers [1, p. 1].\n\n"
+                "## Methods\n\n"
+                "One paper described spectra classifiers [1, p. 1].\n\n"
+                "## Results\n\n"
+                "One paper reported a clinically definitive signal [1, p. 2].\n\n"
+                "## Limitations\n\n"
+                "One paper noted a limitation [1, p. 3].\n"
+            )
+
+            audit = build_report_prose_quality_audit(report, feedback_data_dir=data_dir)
+
+            self.assertEqual(audit["status"], "fallback")
+            learned = [issue for issue in audit["issues"] if issue["rule"] == "feedback_blocked_phrase"]
+            self.assertEqual(len(learned), 1)
+            self.assertEqual(learned[0]["phrase"], "clinically definitive")
+            self.assertIn("too broad", learned[0]["reason"])
+            self.assertEqual(audit["feedback_rule_count"], 1)
+
+    def test_full_report_llm_candidate_falls_back_on_feedback_prose_rule(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_dir = root / "package"
+            data_dir = root / ".friday"
+            _write_fixture_package(package_dir)
+            _write_feedback_rule_store(
+                data_dir,
+                value="clinically definitive",
+                reason="Human feedback said this phrasing was too broad.",
+            )
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=(
+                            "# Friday Research Report\n\n"
+                            "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                            "## Executive Summary\n\n"
+                            "- **Results:** Two papers reported clinically definitive AUROC and sensitivity signals [1, p. 2; 2, p. 2].\n\n"
+                            "---\n\n"
+                            "## Background\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Methods\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Results\n\n"
+                            "Two papers reported clinically definitive AUROC and sensitivity signals [1, p. 2; 2, p. 2].\n\n"
+                            "---\n\n"
+                            "## Limitations\n\n"
+                            "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                            "## Evidence Table\n\n"
+                            "| Paper | Evidence |\n"
+                            "|---|---|\n"
+                            "| P1 | AUROC 0.91 |\n\n"
+                            "## Literature\n\n"
+                            "| Paper | Title |\n"
+                            "|---|---|\n"
+                            "| 1 | MALDI antimicrobial resistance prediction |\n\n"
+                            "## Citation Audit\n\n"
+                            "- Citations checked.\n"
+                        ),
+                    )
+                }
+            )
+
+            files = build_full_report_package_files(
+                package_dir,
+                router=router,
+                use_report_llm=True,
+                feedback_data_dir=data_dir,
+            )
+
+            composer_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(composer_audit["reason"], "prose_quality_failed")
+            self.assertEqual(composer_audit["candidate_prose_quality_status"], "fallback")
+            self.assertNotIn("clinically definitive", files["report.md"])
+
+    def test_full_report_exports_prose_quality_audit_and_manifest_status(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report_prose_quality.json", files)
+            audit = json.loads(files["report_prose_quality.json"])
+            self.assertEqual(audit["status"], "pass")
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["prose_quality_status"], "pass")
+            self.assertEqual(manifest["report_source"], "deterministic")
+
+    def test_full_report_llm_uses_discourse_plan_and_accepts_quality_checked_candidate(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=(
+                            "# Friday Research Report\n\n"
+                            "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                            "## Executive Summary\n\n"
+                            "- **Results:** Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].\n\n"
+                            "---\n\n"
+                            "## Background\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Methods\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Results\n\n"
+                            "Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].\n\n"
+                            "---\n\n"
+                            "## Limitations\n\n"
+                            "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                            "---\n\n"
+                            "## Evidence Table\n\n"
+                            "| Section | Evidence | Citations |\n"
+                            "| --- | --- | --- |\n"
+                            "| result | AUROC 0.91 | 1, p. 2 |\n\n"
+                            "---\n\n"
+                            "## Literature\n\n"
+                            "| Paper | Title | Year | Venue | DOI |\n"
+                            "| --- | --- | --- | --- | --- |\n"
+                            "| P1 | MALDI antimicrobial resistance prediction | 2024 | Nature Medicine | 10.1038/example-a |\n\n"
+                            "---\n\n"
+                            "## Citation Audit\n\n"
+                            "- Status: pass\n"
+                            "- Used citations: 4\n"
+                            "- Unknown citations: 0\n"
+                        ),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_llm_draft.md", files)
+            self.assertIn("report_composer_prompt.json", files)
+            self.assertIn("report_composer_audit.json", files)
+            self.assertIn("Two papers reported AUROC 0.91", files["report.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "pass")
+            self.assertEqual(report_audit["final_report_source"], "llm")
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["report_source"], "llm")
+            prompt = json.loads(files["report_composer_prompt.json"])
+            self.assertIn("report_discourse_plan", prompt["prompt"])
+            self.assertIn("EVIDENCE-BOUND", prompt["system_prompt"])
+            self.assertEqual(router.calls[0][0], "composer")
+
+    def test_full_report_llm_falls_back_when_candidate_fails_prose_quality(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=(
+                            "# Friday Research Report\n\n"
+                            "## Results\n\n"
+                            "Across 2 papers, result evidence includes AUROC 0.91 [P1 p2; P2 p2].\n"
+                        ),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_llm_draft.md", files)
+            self.assertIn("AUROC 0.91", files["report.md"])
+            self.assertNotIn("[P1 p2", files["report.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "fallback")
+            self.assertEqual(report_audit["reason"], "prose_quality_failed")
+            self.assertEqual(report_audit["final_report_source"], "deterministic")
+            self.assertEqual(json.loads(files["report_prose_quality.json"])["status"], "pass")
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["report_source"], "deterministic")
+
+    def test_report_faithfulness_audit_flags_uncited_main_report_claims(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            package = load_writing_package(package_dir)
+            report = (
+                "# Friday Research Report\n\n"
+                "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                "## Executive Summary\n\n"
+                "- **Results:** This uncited sentence says MALDI is clinically validated for AMR deployment.\n\n"
+                "---\n\n"
+                "## Background\n\n"
+                "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                "---\n\n"
+                "## Methods\n\n"
+                "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                "---\n\n"
+                "## Results\n\n"
+                "Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].\n\n"
+                "---\n\n"
+                "## Limitations\n\n"
+                "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                "---\n\n"
+                "## Evidence Table\n\n"
+                "| Section | Evidence | Citations |\n| --- | --- | --- |\n| result | AUROC 0.91 | 1, p. 2 |\n\n"
+                "---\n\n"
+                "## Literature\n\n"
+                "| Paper | Title | Year | Venue | DOI |\n| --- | --- | --- | --- | --- |\n| P1 | Title | 2024 | Journal | DOI |\n\n"
+                "---\n\n"
+                "## Citation Audit\n\n"
+                "- Status: pass\n"
+            )
+
+            audit = build_report_faithfulness_audit(report, package)
+
+            self.assertEqual(audit["artifact_type"], "report_faithfulness_audit")
+            self.assertEqual(audit["status"], "fallback")
+            self.assertEqual(audit["tier_a_status"], "fallback")
+            self.assertEqual(audit["tier_b_status"], "pass")
+            self.assertEqual(audit["issues"][0]["rule"], "uncited_factual_sentence")
+
+    def test_report_faithfulness_audit_flags_cited_sentence_unsupported_by_evidence(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            package = load_writing_package(package_dir)
+            report = (
+                "# Friday Research Report\n\n"
+                "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                "## Executive Summary\n\n"
+                "- **Results:** One paper proved global hospital deployment with mortality benefit [1, p. 2].\n\n"
+                "---\n\n"
+                "## Background\n\n"
+                "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                "---\n\n"
+                "## Methods\n\n"
+                "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                "---\n\n"
+                "## Results\n\n"
+                "One paper proved global hospital deployment with mortality benefit [1, p. 2].\n\n"
+                "---\n\n"
+                "## Limitations\n\n"
+                "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                "---\n\n"
+                "## Evidence Table\n\n"
+                "| Section | Evidence | Citations |\n| --- | --- | --- |\n| result | AUROC 0.91 | 1, p. 2 |\n\n"
+                "---\n\n"
+                "## Literature\n\n"
+                "| Paper | Title | Year | Venue | DOI |\n| --- | --- | --- | --- | --- |\n| P1 | Title | 2024 | Journal | DOI |\n\n"
+                "---\n\n"
+                "## Citation Audit\n\n"
+                "- Status: pass\n"
+            )
+
+            audit = build_report_faithfulness_audit(report, package)
+
+            self.assertEqual(audit["status"], "fallback")
+            self.assertEqual(audit["tier_a_status"], "pass")
+            self.assertEqual(audit["tier_b_status"], "fallback")
+            unsupported = [issue for issue in audit["issues"] if issue["rule"] == "weak_evidence_overlap"]
+            self.assertTrue(unsupported)
+            self.assertIn("mortality", unsupported[0]["missing_terms"])
+
+    def test_full_report_exports_faithfulness_audit_and_manifest_status(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report_faithfulness_audit.json", files)
+            audit = json.loads(files["report_faithfulness_audit.json"])
+            self.assertEqual(audit["status"], "pass")
+            self.assertEqual(audit["tier_a_status"], "pass")
+            self.assertEqual(audit["tier_b_status"], "pass")
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["faithfulness_status"], "pass")
+
+    def test_full_report_exports_typed_claim_units(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("claim_units.json", files)
+            artifact = json.loads(files["claim_units.json"])
+            self.assertEqual(artifact["artifact_type"], "report_claim_units")
+            self.assertEqual(artifact["source_report"]["batch_id"], "batch_test")
+            units = artifact["claim_units"]
+            self.assertTrue(any(unit["claim_type"] == "synthesis" for unit in units))
+            self.assertTrue(any(unit["claim_type"] == "material_gap" for unit in units))
+            result_unit = next(unit for unit in units if "AUROC 0.91" in unit["text"])
+            self.assertEqual(result_unit["citations"], ["P1 p2", "P2 p2"])
+            self.assertEqual(result_unit["support_status"], "supported")
+            self.assertEqual(result_unit["evidence_types"], ["result"])
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertGreaterEqual(manifest["claim_unit_count"], 1)
+
+    def test_full_report_llm_falls_back_when_candidate_fails_faithfulness(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=(
+                            "# Friday Research Report\n\n"
+                            "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                            "## Executive Summary\n\n"
+                            "- **Results:** One paper proved global hospital deployment with mortality benefit [1, p. 2].\n\n"
+                            "---\n\n"
+                            "## Background\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Methods\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Results\n\n"
+                            "One paper proved global hospital deployment with mortality benefit [1, p. 2].\n\n"
+                            "---\n\n"
+                            "## Limitations\n\n"
+                            "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                            "---\n\n"
+                            "## Evidence Table\n\n"
+                            "| Section | Evidence | Citations |\n"
+                            "| --- | --- | --- |\n"
+                            "| result | AUROC 0.91 | 1, p. 2 |\n\n"
+                            "---\n\n"
+                            "## Literature\n\n"
+                            "| Paper | Title | Year | Venue | DOI |\n"
+                            "| --- | --- | --- | --- | --- |\n"
+                            "| P1 | MALDI antimicrobial resistance prediction | 2024 | Nature Medicine | 10.1038/example-a |\n\n"
+                            "---\n\n"
+                            "## Citation Audit\n\n"
+                            "- Status: pass\n"
+                            "- Used citations: 4\n"
+                            "- Unknown citations: 0\n"
+                        ),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_llm_draft.md", files)
+            self.assertNotIn("mortality benefit", files["report.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "fallback")
+            self.assertEqual(report_audit["reason"], "faithfulness_failed")
+            self.assertEqual(report_audit["final_report_source"], "deterministic")
+            self.assertEqual(json.loads(files["report_faithfulness_audit.json"])["status"], "pass")
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["report_source"], "deterministic")
+
+    def test_full_report_llm_critic_revises_candidate_before_acceptance(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": [
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="In plain terms, two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                    ],
+                    "critic": [
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=json.dumps(
+                                {
+                                    "verdict": "fail",
+                                    "summary": "The result prose is too table-like.",
+                                    "issues": [
+                                        {
+                                            "severity": "important",
+                                            "rule": "prose_clarity",
+                                            "sentence": "Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].",
+                                        }
+                                    ],
+                                }
+                            ),
+                        ),
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=json.dumps({"verdict": "pass", "summary": "Revision is readable and evidence-bound.", "issues": []}),
+                        ),
+                    ],
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_critic_prompt.json", files)
+            self.assertIn("report_critic_audit.json", files)
+            self.assertIn("report_revision_prompt.json", files)
+            self.assertIn("report_revised_draft.md", files)
+            critic_prompt = json.loads(files["report_critic_prompt.json"])
+            critic_payload = json.loads(critic_prompt["prompt"])
+            self.assertIn("report_claim_units", critic_payload)
+            self.assertTrue(any(unit["claim_type"] == "synthesis" for unit in critic_payload["report_claim_units"]["claim_units"]))
+            self.assertIn("In plain terms, two papers reported AUROC 0.91", files["report.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "pass")
+            self.assertEqual(report_audit["reason"], "critic_revision_accepted")
+            self.assertEqual(report_audit["final_report_source"], "llm_revised")
+            revision_audit = json.loads(files["report_revision_audit.json"])
+            self.assertEqual(revision_audit["status"], "pass")
+            self.assertEqual([role for role, _request in router.calls], ["composer", "critic", "composer", "critic"])
+
+    def test_full_report_llm_falls_back_when_critic_revision_fails_gates(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": [
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                            ),
+                        ),
+                        LLMResponse(
+                            provider="codex_cli",
+                            model="",
+                            success=True,
+                            text=_valid_full_report_text(
+                                result_sentence="One paper proved global hospital deployment with mortality benefit [1, p. 2]."
+                            ),
+                        ),
+                    ],
+                    "critic": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=json.dumps(
+                            {
+                                "verdict": "fail",
+                                "summary": "The report needs revision.",
+                                "issues": [{"severity": "important", "rule": "faithfulness"}],
+                            }
+                        ),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            self.assertIn("report_revision_audit.json", files)
+            self.assertNotIn("mortality benefit", files["report.md"])
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "fallback")
+            self.assertEqual(report_audit["reason"], "critic_revision_failed")
+            self.assertEqual(report_audit["final_report_source"], "deterministic")
+            revision_audit = json.loads(files["report_revision_audit.json"])
+            self.assertEqual(revision_audit["status"], "fallback")
+            self.assertEqual(revision_audit["faithfulness_status"], "fallback")
+
+    def test_full_report_exports_trust_score_for_reviewable_deterministic_report(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report_trust_score.json", files)
+            trust = json.loads(files["report_trust_score.json"])
+            self.assertEqual(trust["artifact_type"], "report_trust_score")
+            self.assertEqual(trust["verdict"], "needs_review")
+            self.assertEqual(trust["action"], "human_review")
+            self.assertGreaterEqual(trust["score"], 70)
+            self.assertIn("critic_not_run", trust["reasons"])
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["trust_verdict"], "needs_review")
+            self.assertEqual(manifest["trust_action"], "human_review")
+
+    def test_full_report_trust_score_is_publishable_after_critic_pass(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=_valid_full_report_text(
+                            result_sentence="Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2]."
+                        ),
+                    ),
+                    "critic": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=json.dumps({"verdict": "pass", "summary": "Evidence-bound and readable.", "issues": []}),
+                    ),
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            trust = json.loads(files["report_trust_score.json"])
+            self.assertEqual(trust["verdict"], "publishable")
+            self.assertEqual(trust["action"], "publish")
+            self.assertGreaterEqual(trust["score"], 90)
+            self.assertIn("critic_passed", trust["reasons"])
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["trust_verdict"], "publishable")
+
+    def test_report_trust_score_blocks_failed_required_gate(self):
+        trust = build_report_trust_score(
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "fallback", "tier_a_status": "pass", "tier_b_status": "fallback"},
+            report_composer_audit=None,
+        )
+
+        self.assertEqual(trust["verdict"], "blocked")
+        self.assertEqual(trust["action"], "block")
+        self.assertLess(trust["score"], 50)
+        self.assertIn("faithfulness_failed", trust["reasons"])
 
 
 class FakeRouter:
@@ -866,6 +1633,42 @@ class FakeRouter:
     def generate(self, role, request):
         self.calls.append((role, request))
         return self.responses[role].pop(0)
+
+
+def _valid_full_report_text(*, result_sentence: str) -> str:
+    return (
+        "# Friday Research Report\n\n"
+        "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+        "## Executive Summary\n\n"
+        f"- **Results:** {result_sentence}\n\n"
+        "---\n\n"
+        "## Background\n\n"
+        "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+        "---\n\n"
+        "## Methods\n\n"
+        "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+        "---\n\n"
+        "## Results\n\n"
+        f"{result_sentence}\n\n"
+        "---\n\n"
+        "## Limitations\n\n"
+        "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+        "---\n\n"
+        "## Evidence Table\n\n"
+        "| Section | Evidence | Citations |\n"
+        "| --- | --- | --- |\n"
+        "| result | AUROC 0.91 | 1, p. 2 |\n\n"
+        "---\n\n"
+        "## Literature\n\n"
+        "| Paper | Title | Year | Venue | DOI |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| P1 | MALDI antimicrobial resistance prediction | 2024 | Nature Medicine | 10.1038/example-a |\n\n"
+        "---\n\n"
+        "## Citation Audit\n\n"
+        "- Status: pass\n"
+        "- Used citations: 4\n"
+        "- Unknown citations: 0\n"
+    )
 
 
 def _write_fixture_package(package_dir: Path) -> None:
@@ -1038,5 +1841,28 @@ def _write_grouped_fixture_package(package_dir: Path) -> None:
     _write_json(package_dir / "material_gaps.json", [])
 
 
+def _write_feedback_rule_store(data_dir: Path, *, value: str, reason: str) -> None:
+    _write_json(
+        data_dir / "feedback" / "rules" / "prose_quality.json",
+        {
+            "schema_version": "1.0",
+            "artifact_type": "feedback_rule_store",
+            "target": "report_prose_quality",
+            "rules": [
+                {
+                    "source_package": "fixture",
+                    "target": "report_prose_quality",
+                    "action": "add_blocked_phrase",
+                    "value": value,
+                    "reason": reason,
+                    "proposal_summary": "Fixture learned prose rule.",
+                    "created_at": "2026-06-13T00:00:00+00:00",
+                }
+            ],
+        },
+    )
+
+
 def _write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")

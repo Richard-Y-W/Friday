@@ -144,6 +144,28 @@ class EvidenceRecord:
 
 
 @dataclass(frozen=True)
+class ReportClaimUnitRecord:
+    report_package_path: str
+    claim_unit_id: str
+    source_batch_id: str | None
+    source_query: str | None
+    section: str
+    claim_type: str
+    text: str
+    source_sentence: str
+    citations: tuple[str, ...]
+    support_status: str
+    evidence_count: int
+    evidence_types: tuple[str, ...]
+    evidence_row_ids: tuple[str, ...]
+    min_quality_score: float | None
+    min_parse_confidence: float | None
+    min_trust_score: float | None
+    support_details: dict[str, object]
+    created_at: str
+
+
+@dataclass(frozen=True)
 class ScreeningLabelRecord:
     batch_id: str
     source: str
@@ -847,6 +869,81 @@ class FridayStore:
             ).fetchall()
         return [_evidence_record_from_row(row) for row in rows]
 
+    def replace_report_claim_units(
+        self,
+        report_package_path: str,
+        claim_units_artifact: dict[str, object],
+    ) -> list[ReportClaimUnitRecord]:
+        created_at = _now()
+        source_report = claim_units_artifact.get("source_report")
+        if not isinstance(source_report, dict):
+            source_report = {}
+        units = claim_units_artifact.get("claim_units")
+        if not isinstance(units, list):
+            units = []
+        records = [
+            _report_claim_unit_record_from_payload(
+                report_package_path,
+                unit,
+                source_batch_id=_optional_str(source_report.get("batch_id")),
+                source_query=_optional_str(source_report.get("query")),
+                created_at=created_at,
+            )
+            for unit in units
+            if isinstance(unit, dict)
+        ]
+        with self._connect() as conn:
+            conn.execute(
+                "delete from report_claim_units where report_package_path = ?",
+                (report_package_path,),
+            )
+            conn.executemany(
+                """
+                insert into report_claim_units (
+                    report_package_path, claim_unit_id, source_batch_id, source_query,
+                    section, claim_type, text, source_sentence, citations, support_status,
+                    evidence_count, evidence_types, evidence_row_ids, min_quality_score,
+                    min_parse_confidence, min_trust_score, support_details, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        record.report_package_path,
+                        record.claim_unit_id,
+                        record.source_batch_id,
+                        record.source_query,
+                        record.section,
+                        record.claim_type,
+                        record.text,
+                        record.source_sentence,
+                        json.dumps(list(record.citations), sort_keys=True),
+                        record.support_status,
+                        record.evidence_count,
+                        json.dumps(list(record.evidence_types), sort_keys=True),
+                        json.dumps(list(record.evidence_row_ids), sort_keys=True),
+                        record.min_quality_score,
+                        record.min_parse_confidence,
+                        record.min_trust_score,
+                        json.dumps(record.support_details, sort_keys=True),
+                        record.created_at,
+                    )
+                    for record in records
+                ],
+            )
+        return records
+
+    def list_report_claim_units(self, report_package_path: str) -> list[ReportClaimUnitRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select * from report_claim_units
+                 where report_package_path = ?
+                 order by rowid
+                """,
+                (report_package_path,),
+            ).fetchall()
+        return [_report_claim_unit_from_row(row) for row in rows]
+
     def _initialize(self) -> None:
         with self._connect() as conn:
             conn.executescript(
@@ -972,6 +1069,28 @@ class FridayStore:
                     trust_reasons text not null default '[]',
                     created_at text not null,
                     foreign key(artifact_id) references pdf_artifacts(artifact_id)
+                );
+
+                create table if not exists report_claim_units (
+                    report_package_path text not null,
+                    claim_unit_id text not null,
+                    source_batch_id text,
+                    source_query text,
+                    section text not null,
+                    claim_type text not null,
+                    text text not null,
+                    source_sentence text not null,
+                    citations text not null default '[]',
+                    support_status text not null,
+                    evidence_count integer not null,
+                    evidence_types text not null default '[]',
+                    evidence_row_ids text not null default '[]',
+                    min_quality_score real,
+                    min_parse_confidence real,
+                    min_trust_score real,
+                    support_details text not null default '{}',
+                    created_at text not null,
+                    primary key(report_package_path, claim_unit_id)
                 );
 
                 create table if not exists screening_labels (
@@ -1259,6 +1378,60 @@ def _evidence_record_from_row(row: sqlite3.Row) -> EvidenceRecord:
     )
 
 
+def _report_claim_unit_record_from_payload(
+    report_package_path: str,
+    unit: dict[str, object],
+    *,
+    source_batch_id: str | None,
+    source_query: str | None,
+    created_at: str,
+) -> ReportClaimUnitRecord:
+    support_details = unit.get("support_details")
+    return ReportClaimUnitRecord(
+        report_package_path=report_package_path,
+        claim_unit_id=str(unit.get("claim_unit_id") or ""),
+        source_batch_id=source_batch_id,
+        source_query=source_query,
+        section=str(unit.get("section") or ""),
+        claim_type=str(unit.get("claim_type") or ""),
+        text=str(unit.get("text") or ""),
+        source_sentence=str(unit.get("source_sentence") or ""),
+        citations=tuple(_string_list_payload(unit.get("citations"))),
+        support_status=str(unit.get("support_status") or ""),
+        evidence_count=_int_or_zero(unit.get("evidence_count")),
+        evidence_types=tuple(_string_list_payload(unit.get("evidence_types"))),
+        evidence_row_ids=tuple(_string_list_payload(unit.get("evidence_row_ids"))),
+        min_quality_score=_optional_float(unit.get("min_quality_score")),
+        min_parse_confidence=_optional_float(unit.get("min_parse_confidence")),
+        min_trust_score=_optional_float(unit.get("min_trust_score")),
+        support_details=support_details if isinstance(support_details, dict) else {},
+        created_at=created_at,
+    )
+
+
+def _report_claim_unit_from_row(row: sqlite3.Row) -> ReportClaimUnitRecord:
+    return ReportClaimUnitRecord(
+        report_package_path=row["report_package_path"],
+        claim_unit_id=row["claim_unit_id"],
+        source_batch_id=row["source_batch_id"],
+        source_query=row["source_query"],
+        section=row["section"],
+        claim_type=row["claim_type"],
+        text=row["text"],
+        source_sentence=row["source_sentence"],
+        citations=_json_tuple(row["citations"]),
+        support_status=row["support_status"],
+        evidence_count=row["evidence_count"],
+        evidence_types=_json_tuple(row["evidence_types"]),
+        evidence_row_ids=_json_tuple(row["evidence_row_ids"]),
+        min_quality_score=_optional_float(row["min_quality_score"]),
+        min_parse_confidence=_optional_float(row["min_parse_confidence"]),
+        min_trust_score=_optional_float(row["min_trust_score"]),
+        support_details=_json_dict(row["support_details"]),
+        created_at=row["created_at"],
+    )
+
+
 def _screening_label_from_row(row: sqlite3.Row) -> ScreeningLabelRecord:
     return ScreeningLabelRecord(
         batch_id=row["batch_id"],
@@ -1285,6 +1458,45 @@ def _json_tuple(value: str | None) -> tuple[str, ...]:
     if not isinstance(parsed, list):
         return ()
     return tuple(str(item) for item in parsed if str(item))
+
+
+def _json_dict(value: str | None) -> dict[str, object]:
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _string_list_payload(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _int_or_zero(value: object) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _make_id(prefix: str) -> str:

@@ -6,7 +6,7 @@ from friday.llm.router import ModelRouter
 from friday.llm.types import ModelConfig, Provider, ProviderName, Role
 
 # Pipeline roles, in the order they appear in the build plan (§11 / Phase 0).
-ROLES: tuple[Role, ...] = ("screener", "extractor", "planner", "composer", "verifier", "critic")
+ROLES: tuple[Role, ...] = ("screener", "extractor", "planner", "composer", "verifier", "critic", "feedback")
 
 # Named profiles keep provider/model pairs compatible when switching between
 # local subscription CLIs. High-volume screening and extraction stay
@@ -21,6 +21,7 @@ LLM_PROFILES: dict[str, dict[Role, tuple[ProviderName, str]]] = {
         "composer": ("codex_cli", ""),
         "verifier": ("codex_cli", ""),
         "critic": ("codex_cli", ""),
+        "feedback": ("codex_cli", ""),
     },
     "claude": {
         "screener": ("none", ""),
@@ -29,6 +30,7 @@ LLM_PROFILES: dict[str, dict[Role, tuple[ProviderName, str]]] = {
         "composer": ("claude_cli", "sonnet"),
         "verifier": ("codex_cli", ""),
         "critic": ("codex_cli", ""),
+        "feedback": ("claude_cli", "sonnet"),
     },
 }
 

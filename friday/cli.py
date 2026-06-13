@@ -28,10 +28,25 @@ from friday.corpus_adapters import (
 )
 from friday.corpus_routing import CorpusRouteResult, route_corpus_query
 from friday.discovery import Candidate, discover_candidates
+from friday.draft_review import (
+    DraftReviewError,
+    REVIEW_DECISIONS,
+    build_draft_feedback_files,
+)
 from friday.eval_suite import (
     available_eval_suites,
     render_eval_report_text,
     run_eval_suite,
+)
+from friday.feedback_apply import FeedbackApplyError, apply_feedback_tuning
+from friday.feedback_interpreter import (
+    FeedbackInterpretationError,
+    build_feedback_tuning_proposal_files,
+)
+from friday.feedback_review import (
+    FeedbackReviewError,
+    build_feedback_decision_files,
+    build_feedback_proposal_review,
 )
 from friday.label_export import (
     build_label_export_rows,
@@ -105,6 +120,8 @@ COMMAND_NAMES = {
     "import-corpus",
     "write",
     "compose",
+    "review-draft",
+    "feedback",
 }
 
 WRITING_FORMAT_CHOICES = ("markdown", "json", "package")
@@ -137,6 +154,10 @@ def main(
         return _handle_import_corpus(args)
     if args.command == "compose":
         return _handle_compose(args, data_dir)
+    if args.command == "review-draft":
+        return _handle_review_draft(args)
+    if args.command == "feedback":
+        return _handle_feedback(args, data_dir)
     if not args.command:
         parser.print_help()
         return 2
@@ -228,6 +249,7 @@ def _handle_interactive_shell(
             discoverer=discoverer,
             pdf_ingestor=pdf_ingestor,
             llm_label_client=llm_label_client,
+            input_stream=stream,
         )
         if code != 0:
             print(f"Command exited with status {code}.")
@@ -243,6 +265,7 @@ def _handle_interactive_line(
         PdfIngestionResult,
     ],
     llm_label_client: object | None,
+    input_stream: object | None = None,
 ) -> int:
     try:
         tokens = shlex.split(line)
@@ -299,7 +322,126 @@ def _handle_interactive_line(
         if desktop_pdf:
             print(f"Desktop PDF: {desktop_pdf}")
         print(f"Report package: {package_dir}")
+        _maybe_capture_interactive_feedback(package_dir, data_dir=Path(data_dir), input_stream=input_stream)
     return code
+
+
+def _maybe_capture_interactive_feedback(
+    package_dir: Path,
+    *,
+    data_dir: Path,
+    input_stream: object | None,
+) -> None:
+    stream = input_stream or sys.stdin
+    answer = _read_interactive_answer(stream, "Review this report now? [Y/n] ")
+    if answer.casefold() in {"n", "no"}:
+        return
+    if answer and answer.casefold() not in {"y", "yes"}:
+        print("Skipping review.")
+        return
+
+    decision = _read_interactive_decision(stream)
+    if not decision:
+        print("Skipping review.")
+        return
+    note = _read_interactive_answer(stream, "What felt wrong or useful? Short note: ")
+    feedback_files = build_draft_feedback_files(
+        package_dir,
+        decision=decision,
+        note=note,
+        reviewer=os.environ.get("USER") or "",
+    )
+    _emit_package_output(feedback_files, package_dir)
+    print(f"Wrote draft feedback: {package_dir / 'draft_feedback.json'}")
+    print(f"Wrote review queue: {package_dir / 'review_queue.md'}")
+
+    router = build_router(load_settings(data_dir))
+    role_config = getattr(router, "role_config", None)
+    config = role_config("feedback") if callable(role_config) else None
+    provider = config.provider if config is not None else "none"
+    print(f"Interpreting feedback with {provider}...")
+    try:
+        proposal_files = build_feedback_tuning_proposal_files(package_dir, router=router)
+    except FeedbackInterpretationError as exc:
+        print(f"Feedback interpreter unavailable: {exc}")
+        print("Raw feedback was saved, but no tuning proposal was generated.")
+        print("Run: friday llm test --role feedback")
+        return
+    _emit_package_output(proposal_files, package_dir)
+    print(f"Wrote tuning proposal: {package_dir / 'tuning_proposal.md'}")
+    _maybe_apply_interactive_feedback_tuning(package_dir, data_dir=data_dir, input_stream=stream, note=note)
+
+
+def _maybe_apply_interactive_feedback_tuning(
+    package_dir: Path,
+    *,
+    data_dir: Path,
+    input_stream: object | None,
+    note: str,
+) -> None:
+    stream = input_stream or sys.stdin
+    answer = _read_interactive_answer(stream, "Apply this tuning if evals pass? [Y/n] ")
+    if answer.casefold() in {"n", "no"}:
+        decision_files = build_feedback_decision_files(
+            package_dir,
+            decision="rejected",
+            note="Rejected from interactive flow.",
+            reviewer=os.environ.get("USER") or "",
+        )
+        _emit_package_output(decision_files, package_dir)
+        print(f"Wrote tuning decision: {package_dir / 'tuning_decision.json'}")
+        return
+    if answer and answer.casefold() not in {"y", "yes"}:
+        print("Skipping tuning apply.")
+        return
+    decision_files = build_feedback_decision_files(
+        package_dir,
+        decision="approved",
+        note=note,
+        reviewer=os.environ.get("USER") or "",
+    )
+    _emit_package_output(decision_files, package_dir)
+    print(f"Wrote tuning decision: {package_dir / 'tuning_decision.json'}")
+    print("Running eval gates before apply...")
+    apply_files = apply_feedback_tuning(package_dir, data_dir)
+    _emit_package_output(apply_files, package_dir)
+    apply_payload = json.loads(apply_files["tuning_apply.json"])
+    print(f"Wrote tuning apply: {package_dir / 'tuning_apply.json'}")
+    print(f"Tuning apply status: {apply_payload['status']}")
+
+
+def _read_interactive_decision(stream: object) -> str | None:
+    choices = [
+        ("1", "approve"),
+        ("2", "needs_rewrite"),
+        ("3", "bad_evidence"),
+        ("4", "citation_issue"),
+        ("5", "too_confusing"),
+        ("6", "reject"),
+    ]
+    print("Overall, what should happen?")
+    for number, decision in choices:
+        print(f"  [{number}] {decision}")
+    raw = _read_interactive_answer(stream, "Choice: ")
+    by_number = dict(choices)
+    if raw in by_number:
+        return by_number[raw]
+    normalized = raw.strip().casefold().replace(" ", "_").replace("-", "_")
+    if normalized in REVIEW_DECISIONS:
+        return normalized
+    return None
+
+
+def _read_interactive_answer(stream: object, prompt: str) -> str:
+    print(prompt, end="", flush=True)
+    readline = getattr(stream, "readline", None)
+    if not callable(readline):
+        return ""
+    value = readline()
+    if value == "":
+        print("")
+        return ""
+    return str(value).strip()
 
 
 def _print_interactive_splash() -> None:
@@ -627,6 +769,27 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use the configured composer role for polished prose, with deterministic fallback on any audit failure.",
     )
+
+    review_draft = subparsers.add_parser(
+        "review-draft",
+        help="Create or capture human feedback for a composed report package.",
+    )
+    review_draft.add_argument("--package", dest="package_dir", required=True, help="Report package directory to review.")
+    review_draft.add_argument("--decision", choices=REVIEW_DECISIONS, help="Human decision to capture.")
+    review_draft.add_argument("--note", help="Optional human review note.")
+    review_draft.add_argument("--reviewer", help="Optional reviewer name or handle.")
+    review_draft.add_argument("--output", help="Directory to write review artifacts. Defaults to the package directory.")
+
+    feedback = subparsers.add_parser("feedback", help="Review and decide feedback tuning proposals.")
+    feedback.add_argument(
+        "action",
+        choices=("review", "approve", "reject", "apply"),
+        help="Review, approve, reject, or eval-gate apply a proposal.",
+    )
+    feedback.add_argument("--package", dest="package_dir", required=True, help="Report package containing tuning_proposal.json.")
+    feedback.add_argument("--note", help="Optional note for approve/reject.")
+    feedback.add_argument("--reviewer", help="Optional reviewer name or handle.")
+    feedback.add_argument("--output", help="Directory to write decision artifacts. Defaults to the package directory.")
 
     return parser
 
@@ -2031,6 +2194,7 @@ def _handle_compose(args: argparse.Namespace, data_dir: Path) -> int:
                 Path(args.package_dir),
                 router=build_router(load_settings(data_dir)) if args.llm else None,
                 use_llm=args.llm,
+                feedback_data_dir=data_dir,
             )
         elif args.llm:
             files = build_llm_compose_package_files(
@@ -2044,7 +2208,81 @@ def _handle_compose(args: argparse.Namespace, data_dir: Path) -> int:
         print(f"Compose package error: {exc}")
         return 2
     _emit_package_output(files, Path(args.output))
+    if args.section == "report":
+        _persist_report_claim_units(data_dir, Path(args.output), files)
     print(f"Wrote compose package: {args.output}")
+    return 0
+
+
+def _persist_report_claim_units(data_dir: Path, output_dir: Path, files: dict[str, str | bytes]) -> None:
+    claim_units_text = files.get("claim_units.json")
+    if not isinstance(claim_units_text, str):
+        return
+    try:
+        claim_units = json.loads(claim_units_text)
+    except json.JSONDecodeError:
+        return
+    if not isinstance(claim_units, dict):
+        return
+    store = FridayStore(data_dir / "friday.db")
+    store.replace_report_claim_units(str(output_dir), claim_units)
+
+
+def _handle_review_draft(args: argparse.Namespace) -> int:
+    package_dir = Path(args.package_dir)
+    output_dir = Path(args.output) if args.output else package_dir
+    try:
+        files = build_draft_feedback_files(
+            package_dir,
+            decision=args.decision,
+            note=args.note,
+            reviewer=args.reviewer,
+        )
+    except DraftReviewError as exc:
+        print(f"Draft review error: {exc}")
+        return 2
+    _emit_package_output(files, output_dir)
+    print(f"Wrote draft feedback: {output_dir / 'draft_feedback.json'}")
+    print(f"Wrote review queue: {output_dir / 'review_queue.md'}")
+    if args.decision:
+        print(f"Human decision: {args.decision}")
+    return 0
+
+
+def _handle_feedback(args: argparse.Namespace, data_dir: Path) -> int:
+    package_dir = Path(args.package_dir)
+    try:
+        if args.action == "review":
+            print(build_feedback_proposal_review(package_dir), end="")
+            return 0
+        if args.action == "apply":
+            apply_files = apply_feedback_tuning(package_dir, data_dir)
+            output_dir = Path(args.output) if args.output else package_dir
+            _emit_package_output(apply_files, output_dir)
+            apply_payload = json.loads(apply_files["tuning_apply.json"])
+            print(f"Wrote tuning apply: {output_dir / 'tuning_apply.json'}")
+            print(f"Wrote tuning apply report: {output_dir / 'tuning_apply.md'}")
+            print(f"Tuning apply status: {apply_payload['status']}")
+            return 0 if apply_payload["status"] == "applied" else 1
+        decision = "approved" if args.action == "approve" else "rejected"
+        files = build_feedback_decision_files(
+            package_dir,
+            decision=decision,
+            note=args.note,
+            reviewer=args.reviewer,
+        )
+    except (FeedbackReviewError, FeedbackApplyError) as exc:
+        print(f"Feedback review error: {exc}")
+        return 2
+
+    output_dir = Path(args.output) if args.output else package_dir
+    _emit_package_output(files, output_dir)
+    print(f"Wrote tuning decision: {output_dir / 'tuning_decision.json'}")
+    print(f"Wrote tuning decision review: {output_dir / 'tuning_decision.md'}")
+    print(f"Tuning proposal decision: {decision}")
+    if decision == "approved":
+        print("Apply status: not_applied")
+        print(f"Next: friday feedback apply --package {package_dir}")
     return 0
 
 

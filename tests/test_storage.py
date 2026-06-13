@@ -394,6 +394,54 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(loaded[0].trust_label, "quarantined")
             self.assertIn("quality_label:blocked", loaded[0].trust_reasons)
 
+    def test_replaces_and_lists_report_claim_units(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+
+        with TemporaryDirectory() as tmp:
+            store = FridayStore(Path(tmp) / "friday.db")
+            report_path = str(Path(tmp) / "report-package")
+            artifact = {
+                "source_report": {"batch_id": "batch_test", "query": "MALDI AMR"},
+                "claim_units": [
+                    {
+                        "claim_unit_id": "C1",
+                        "section": "Results",
+                        "claim_type": "synthesis",
+                        "text": "Two papers reported AUROC 0.91.",
+                        "source_sentence": "Two papers reported AUROC 0.91 [1, p. 2; 2, p. 2].",
+                        "citations": ["P1 p2", "P2 p2"],
+                        "support_status": "supported",
+                        "evidence_count": 2,
+                        "evidence_types": ["result"],
+                        "evidence_row_ids": ["R1", "R2"],
+                        "min_quality_score": 0.9,
+                        "min_parse_confidence": 0.82,
+                        "min_trust_score": 0.85,
+                        "support_details": {"overlap_terms": ["auroc"]},
+                    }
+                ],
+            }
+
+            store.replace_report_claim_units(report_path, artifact)
+            first = store.list_report_claim_units(report_path)
+            store.replace_report_claim_units(report_path, {**artifact, "claim_units": []})
+            second = store.list_report_claim_units(report_path)
+
+            self.assertEqual(len(first), 1)
+            self.assertEqual(first[0].report_package_path, report_path)
+            self.assertEqual(first[0].source_batch_id, "batch_test")
+            self.assertEqual(first[0].source_query, "MALDI AMR")
+            self.assertEqual(first[0].claim_unit_id, "C1")
+            self.assertEqual(first[0].claim_type, "synthesis")
+            self.assertEqual(first[0].citations, ("P1 p2", "P2 p2"))
+            self.assertEqual(first[0].support_status, "supported")
+            self.assertEqual(first[0].evidence_types, ("result",))
+            self.assertEqual(first[0].evidence_row_ids, ("R1", "R2"))
+            self.assertEqual(first[0].min_parse_confidence, 0.82)
+            self.assertEqual(first[0].support_details, {"overlap_terms": ["auroc"]})
+            self.assertEqual(second, [])
+
 
 if __name__ == "__main__":
     unittest.main()

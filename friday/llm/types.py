@@ -14,7 +14,7 @@ ProviderName = str  # "ollama" | "claude_cli" | "codex_cli" | "openai" | "anthro
 # Roles map a pipeline stage to a model. Keeping roles explicit lets a cheap
 # local model screen while a stronger model composes and a *different* model
 # verifies (the "independent model family" invariant from the build plan).
-Role = str  # "screener" | "extractor" | "composer" | "verifier" | "critic"
+Role = str  # "screener" | "extractor" | "composer" | "verifier" | "critic" | "feedback"
 
 
 @dataclass(frozen=True)

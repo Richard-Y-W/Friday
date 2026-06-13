@@ -758,17 +758,19 @@ def render_report_pdf_bytes(markdown: str) -> bytes:
     objects: list[bytes] = []
     catalog_id = 1
     pages_id = 2
-    font_id = 3
+    regular_font_id = 3
+    bold_font_id = 4
     page_ids = []
     for page_index, page_lines in enumerate(page_chunks):
-        page_id = 4 + page_index * 2
+        page_id = 5 + page_index * 2
         content_id = page_id + 1
         page_ids.append(page_id)
         stream = _pdf_page_stream(page_lines)
         objects.append(
             f"{page_id} 0 obj\n"
             f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 612 792] "
-            f"/Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>\n"
+            f"/Resources << /Font << /F1 {regular_font_id} 0 R /F2 {bold_font_id} 0 R >> >> "
+            f"/Contents {content_id} 0 R >>\n"
             "endobj\n".encode("latin-1")
         )
         objects.append(
@@ -782,7 +784,8 @@ def render_report_pdf_bytes(markdown: str) -> bytes:
             f"{pages_id} 0 obj\n<< /Type /Pages /Kids "
             f"[{' '.join(f'{page_id} 0 R' for page_id in page_ids)}] /Count {len(page_ids)} >>\nendobj\n"
         ).encode("latin-1"),
-        f"{font_id} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n".encode("latin-1"),
+        f"{regular_font_id} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>\nendobj\n".encode("latin-1"),
+        f"{bold_font_id} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n".encode("latin-1"),
     ]
     all_objects = first_objects + objects
     content = bytearray(b"%PDF-1.4\n")
@@ -804,16 +807,31 @@ def render_report_pdf_bytes(markdown: str) -> bytes:
     return bytes(content)
 
 
-def _pdf_lines_from_markdown(markdown: str) -> list[str]:
-    lines: list[str] = []
+def _pdf_lines_from_markdown(markdown: str) -> list[dict[str, str]]:
+    lines: list[dict[str, str]] = []
     for raw_line in markdown.splitlines():
         text = raw_line.strip()
         if not text:
-            lines.append("")
+            lines.append({"text": "", "style": "body"})
             continue
+        style = "body"
+        width = 86
+        if text == "---":
+            lines.append({"text": "____________________________________________", "style": "rule"})
+            continue
+        if text.startswith("# "):
+            style = "title"
+            width = 64
+        elif text.startswith("## "):
+            style = "heading"
+            width = 70
+        elif text.startswith("### "):
+            style = "subheading"
+            width = 76
         text = re.sub(r"^#+\s*", "", text)
         text = text.replace("`", "")
-        lines.extend(_wrap_pdf_line(text, width=86))
+        text = text.replace("**", "")
+        lines.extend({"text": line, "style": style} for line in _wrap_pdf_line(text, width=width))
     return lines
 
 
@@ -833,10 +851,22 @@ def _wrap_pdf_line(text: str, width: int) -> list[str]:
     return lines
 
 
-def _pdf_page_stream(lines: list[str]) -> bytes:
-    parts = ["BT", "/F1 10 Tf", "50 750 Td", "14 TL"]
+def _pdf_page_stream(lines: list[dict[str, str]]) -> bytes:
+    parts = ["BT", "/F1 10 Tf", "0 0 0 rg", "50 750 Td", "14 TL"]
     for line in lines:
-        parts.append(f"({_pdf_escape(line)}) Tj")
+        style = line.get("style", "body")
+        text = line.get("text", "")
+        if style == "title":
+            parts.extend(["/F2 16 Tf", "0.06 0.18 0.28 rg"])
+        elif style == "heading":
+            parts.extend(["/F2 14 Tf", "0.10 0.35 0.52 rg"])
+        elif style == "subheading":
+            parts.extend(["/F2 12 Tf", "0.10 0.35 0.52 rg"])
+        elif style == "rule":
+            parts.extend(["/F1 10 Tf", "0.70 0.70 0.70 rg"])
+        else:
+            parts.extend(["/F1 10 Tf", "0 0 0 rg"])
+        parts.append(f"({_pdf_escape(text)}) Tj")
         parts.append("T*")
     parts.append("ET")
     return "\n".join(parts).encode("latin-1", errors="replace")

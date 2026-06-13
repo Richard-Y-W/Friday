@@ -18,6 +18,7 @@ class LlmConfigTests(unittest.TestCase):
         self.assertEqual(DEFAULT_ROLE_WIRING["composer"], ("codex_cli", ""))
         self.assertEqual(DEFAULT_ROLE_WIRING["verifier"][0], "codex_cli")
         self.assertEqual(DEFAULT_ROLE_WIRING["critic"][0], "codex_cli")
+        self.assertEqual(DEFAULT_ROLE_WIRING["feedback"][0], "codex_cli")
         # High-volume screening/extraction stay deterministic.
         self.assertEqual(DEFAULT_ROLE_WIRING["screener"][0], "none")
         self.assertEqual(DEFAULT_ROLE_WIRING["extractor"][0], "none")
@@ -34,6 +35,7 @@ class LlmConfigTests(unittest.TestCase):
         self.assertEqual(codex["composer_model"], "")
         self.assertEqual(codex["verifier_provider"], "codex_cli")
         self.assertEqual(codex["critic_provider"], "codex_cli")
+        self.assertEqual(codex["feedback_provider"], "codex_cli")
 
         claude = profile_settings("claude")
         self.assertEqual(claude["planner_provider"], "claude_cli")
@@ -42,6 +44,8 @@ class LlmConfigTests(unittest.TestCase):
         self.assertEqual(claude["composer_model"], "sonnet")
         self.assertEqual(claude["verifier_provider"], "codex_cli")
         self.assertEqual(claude["verifier_model"], "")
+        self.assertEqual(claude["feedback_provider"], "claude_cli")
+        self.assertEqual(claude["feedback_model"], "sonnet")
 
     def test_no_default_role_uses_token_billed_providers(self):
         for role in ROLES:
@@ -70,7 +74,7 @@ class LlmConfigTests(unittest.TestCase):
     def test_build_router_configures_generative_roles(self):
         router = build_router({"llm": default_llm_settings()})
         configured = set(router.configured_roles())
-        self.assertEqual(configured, {"planner", "composer", "verifier", "critic"})
+        self.assertEqual(configured, {"planner", "composer", "verifier", "critic", "feedback"})
 
 
 if __name__ == "__main__":

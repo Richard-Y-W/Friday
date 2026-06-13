@@ -8,6 +8,7 @@ from unittest.mock import patch
 from friday.discovery import Candidate
 from friday.cli import main
 from friday.llm_labeling import LlmLabelResult
+from friday.llm.types import LLMResponse
 from friday.pdf_ingestion import PdfIngestionResult
 
 
@@ -219,6 +220,98 @@ class CliTests(unittest.TestCase):
             self.assertTrue(desktop_pdf.exists())
             self.assertEqual(desktop_pdf.read_bytes(), (package_dir / "report.pdf").read_bytes())
             self.assertIn(f"Desktop PDF: {desktop_pdf}", output)
+
+    def test_interactive_shell_prompts_for_feedback_and_writes_tuning_proposal(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        def fake_discoverer(query, limit):
+            self.assertEqual(query, "MALDI AMR")
+            return [
+                Candidate(
+                    provider="arxiv",
+                    title="MALDI antimicrobial resistance paper",
+                    source_for_gate="https://arxiv.org/pdf/2401.12345",
+                    arxiv_id="2401.12345",
+                    abstract="MALDI-TOF spectra identify antimicrobial resistance patterns.",
+                    relevance_score=80,
+                )
+            ][:limit]
+
+        def fake_pdf_ingestor(store, data_dir, batch_id, source, candidate=None):
+            artifact = store.add_pdf_artifact(
+                batch_id,
+                source=source,
+                pdf_url=source,
+                final_url=source,
+                sha256="1" * 64,
+                byte_count=123,
+                content_type="application/pdf",
+                local_path="artifacts/test.pdf",
+                status="stored",
+                reason="pdf_text_extracted",
+            )
+            from friday.evidence import EvidenceItem
+
+            store.add_evidence_records(
+                artifact.artifact_id,
+                [
+                    EvidenceItem(
+                        evidence_type="result",
+                        text="MALDI-TOF spectra identified antimicrobial resistance patterns.",
+                        page_number=2,
+                    )
+                ],
+            )
+            return PdfIngestionResult(
+                status="stored",
+                reason="pdf_text_extracted",
+                artifact_id=artifact.artifact_id,
+                pdf_url=source,
+                page_count=1,
+            )
+
+        router = _FeedbackRouter()
+        with TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / ".friday"
+            out = io.StringIO()
+            with patch("friday.cli.build_router", return_value=router), patch(
+                "friday.feedback_apply.run_eval_suite",
+                side_effect=lambda suite: _eval_report(suite, "pass"),
+            ), redirect_stdout(out):
+                code = main(
+                    ["--data-dir", str(data_dir)],
+                    input_stream=io.StringIO(
+                        "friday tell me about MALDI AMR\n"
+                        "y\n"
+                        "2\n"
+                        "The summary is hard to read and the evidence feels broad.\n"
+                        "y\n"
+                        "/exit\n"
+                    ),
+                    force_interactive=True,
+                    discoverer=fake_discoverer,
+                    pdf_ingestor=fake_pdf_ingestor,
+                )
+
+            output = out.getvalue()
+            package_line = next(line for line in output.splitlines() if line.startswith("Report package: "))
+            package_dir = Path(package_line.split(": ", 1)[1])
+            self.assertEqual(code, 0)
+            self.assertIn("Review this report now?", output)
+            self.assertIn("Interpreting feedback with codex_cli", output)
+            self.assertIn("Wrote tuning proposal:", output)
+            self.assertIn("Apply this tuning if evals pass?", output)
+            self.assertIn("Wrote tuning apply:", output)
+            feedback = json.loads((package_dir / "draft_feedback.json").read_text(encoding="utf-8"))
+            proposal = json.loads((package_dir / "tuning_proposal.json").read_text(encoding="utf-8"))
+            apply = json.loads((package_dir / "tuning_apply.json").read_text(encoding="utf-8"))
+            self.assertEqual(feedback["human_feedback"]["decision"], "needs_rewrite")
+            self.assertIn("hard to read", feedback["human_feedback"]["note"])
+            self.assertEqual(proposal["interpreter_provider"], "codex_cli")
+            self.assertEqual(proposal["signal_types"], ["prose_quality", "faithfulness"])
+            self.assertEqual(apply["status"], "applied")
+            self.assertEqual(router.calls[0][0], "feedback")
 
     def test_query_scan_stores_discovered_candidates(self):
         from pathlib import Path
@@ -3266,6 +3359,7 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output_dir / "report.md").exists())
             self.assertTrue((output_dir / "report.pdf").read_bytes().startswith(b"%PDF-1.4"))
             self.assertTrue((output_dir / "citation_audit.json").exists())
+            self.assertTrue((output_dir / "claim_units.json").exists())
             self.assertTrue((output_dir / "evidence_table.md").exists())
             self.assertTrue((output_dir / "literature_table.md").exists())
             self.assertTrue((output_dir / "sections" / "results" / "draft.md").exists())
@@ -3273,9 +3367,80 @@ class CliTests(unittest.TestCase):
             self.assertIn("# Friday Research Report", report)
             self.assertIn("## Executive Summary", report)
             self.assertIn("## Results", report)
-            self.assertIn("result evidence includes AUROC 0.91", report)
+            self.assertIn("Two papers reported AUROC 0.91 and sensitivity 88 percent", report)
             audit = json.loads((output_dir / "citation_audit.json").read_text(encoding="utf-8"))
             self.assertEqual(audit["status"], "pass")
+            claim_units = json.loads((output_dir / "claim_units.json").read_text(encoding="utf-8"))
+            self.assertEqual(claim_units["artifact_type"], "report_claim_units")
+            self.assertTrue(any(unit["support_status"] == "supported" for unit in claim_units["claim_units"]))
+
+    def test_compose_report_persists_claim_units_to_friday_store(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from friday.storage import FridayStore
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "writing-package"
+            _write_compose_fixture_package(package_dir)
+            output_dir = tmp_path / "compose-report-output"
+            data_dir = tmp_path / ".friday"
+
+            code, output = self.run_cli(
+                [
+                    "--data-dir",
+                    str(data_dir),
+                    "compose",
+                    "--package",
+                    str(package_dir),
+                    "--section",
+                    "report",
+                    "--output",
+                    str(output_dir),
+                ],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote compose package: {output_dir}", output)
+            store = FridayStore(data_dir / "friday.db")
+            records = store.list_report_claim_units(str(output_dir))
+            self.assertTrue(records)
+            self.assertTrue(any(record.support_status == "supported" for record in records))
+            self.assertTrue(any(record.claim_type == "synthesis" for record in records))
+
+    def test_compose_report_consumes_feedback_prose_rules_from_data_dir(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "writing-package"
+            data_dir = tmp_path / ".friday"
+            _write_compose_fixture_package(package_dir)
+            _write_feedback_rule_store(data_dir, value="AUROC 0.91", reason="Human feedback marked this as too raw.")
+            output_dir = tmp_path / "compose-report-output"
+
+            code, output = self.run_cli(
+                [
+                    "compose",
+                    "--package",
+                    str(package_dir),
+                    "--section",
+                    "report",
+                    "--output",
+                    str(output_dir),
+                ],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote compose package: {output_dir}", output)
+            prose = json.loads((output_dir / "report_prose_quality.json").read_text(encoding="utf-8"))
+            self.assertEqual(prose["status"], "fallback")
+            self.assertEqual(prose["feedback_rule_count"], 1)
+            self.assertIn("feedback_blocked_phrase", [issue["rule"] for issue in prose["issues"]])
 
     def test_compose_llm_writes_planner_and_composer_audit_without_real_provider(self):
         from pathlib import Path
@@ -3346,6 +3511,138 @@ class CliTests(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertFalse((data_dir / "friday.db").exists())
+
+    def test_review_draft_writes_feedback_packet_and_captures_decision(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "report-package"
+            package_dir.mkdir()
+            (package_dir / "report.md").write_text("# Friday Research Report\n", encoding="utf-8")
+            (package_dir / "report_trust_score.json").write_text(
+                json.dumps(
+                    {
+                        "score": 82,
+                        "verdict": "needs_review",
+                        "action": "human_review",
+                        "reasons": ["critic_not_run"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (package_dir / "report_manifest.json").write_text(json.dumps({"trust_verdict": "needs_review"}), encoding="utf-8")
+
+            code, output = self.run_cli(
+                [
+                    "review-draft",
+                    "--package",
+                    str(package_dir),
+                    "--decision",
+                    "needs_rewrite",
+                    "--note",
+                    "Make the results easier to read.",
+                ],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote draft feedback: {package_dir / 'draft_feedback.json'}", output)
+            self.assertIn(f"Wrote review queue: {package_dir / 'review_queue.md'}", output)
+            feedback = json.loads((package_dir / "draft_feedback.json").read_text(encoding="utf-8"))
+            self.assertEqual(feedback["review_status"], "captured")
+            self.assertEqual(feedback["human_feedback"]["decision"], "needs_rewrite")
+            self.assertIn("critic_not_run", feedback["review_items"][0]["rule"])
+
+    def test_feedback_review_prints_tuning_proposal_summary(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "report-package"
+            _write_tuning_proposal_fixture(package_dir)
+
+            code, output = self.run_cli(["feedback", "review", "--package", str(package_dir)], tmp_path)
+
+            self.assertEqual(code, 0)
+            self.assertIn("Feedback Tuning Proposal Review", output)
+            self.assertIn("Status: proposed", output)
+            self.assertIn("report_prose_quality", output)
+            self.assertFalse((tmp_path / ".friday" / "friday.db").exists())
+
+    def test_feedback_approve_writes_decision_packet(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "report-package"
+            _write_tuning_proposal_fixture(package_dir)
+
+            code, output = self.run_cli(
+                [
+                    "feedback",
+                    "approve",
+                    "--package",
+                    str(package_dir),
+                    "--note",
+                    "Use this as a prose regression.",
+                    "--reviewer",
+                    "byung",
+                ],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote tuning decision: {package_dir / 'tuning_decision.json'}", output)
+            decision = json.loads((package_dir / "tuning_decision.json").read_text(encoding="utf-8"))
+            self.assertEqual(decision["decision"], "approved")
+            self.assertEqual(decision["apply_status"], "not_applied")
+            self.assertEqual(decision["human_review"]["reviewer"], "byung")
+
+    def test_feedback_reject_writes_decision_packet(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "report-package"
+            _write_tuning_proposal_fixture(package_dir)
+
+            code, output = self.run_cli(
+                ["feedback", "reject", "--package", str(package_dir), "--note", "Too broad."],
+                tmp_path,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn("Tuning proposal decision: rejected", output)
+            decision = json.loads((package_dir / "tuning_decision.json").read_text(encoding="utf-8"))
+            self.assertEqual(decision["decision"], "rejected")
+            self.assertEqual(decision["apply_status"], "not_applicable")
+
+    def test_feedback_apply_runs_eval_gates_and_writes_local_rules(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package_dir = tmp_path / "report-package"
+            _write_tuning_proposal_fixture(package_dir)
+            _write_tuning_decision_fixture(package_dir)
+
+            with patch("friday.feedback_apply.run_eval_suite", side_effect=lambda suite: _eval_report(suite, "pass")):
+                code, output = self.run_cli(["feedback", "apply", "--package", str(package_dir)], tmp_path)
+
+            self.assertEqual(code, 0)
+            self.assertIn(f"Wrote tuning apply: {package_dir / 'tuning_apply.json'}", output)
+            apply = json.loads((package_dir / "tuning_apply.json").read_text(encoding="utf-8"))
+            self.assertEqual(apply["status"], "applied")
+            rules = json.loads(
+                (tmp_path / ".friday" / "feedback" / "rules" / "prose_quality.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(rules["rules"][0]["value"], "evidence includes")
 
     def test_global_data_dir_before_subcommand_is_honored(self):
         from pathlib import Path
@@ -3426,7 +3723,84 @@ def _write_compose_fixture_package(package_dir):
     _write_json(package_dir / "material_gaps.json", [])
 
 
+def _write_tuning_proposal_fixture(package_dir):
+    package_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        package_dir / "tuning_proposal.json",
+        {
+            "schema_version": "1.0",
+            "artifact_type": "tuning_proposal",
+            "status": "proposed",
+            "package_dir": str(package_dir),
+            "interpreter_provider": "codex_cli",
+            "interpreter_model": "",
+            "summary": "The user flagged readability.",
+            "signal_types": ["prose_quality"],
+            "proposed_actions": [
+                {
+                    "target": "report_prose_quality",
+                    "action": "add_blocked_phrase",
+                    "value": "evidence includes",
+                    "reason": "The report read like stitched evidence.",
+                }
+            ],
+            "benchmark_recommendation": "save_failure",
+            "required_eval_gates": ["gold", "real-smoke"],
+            "auto_apply": False,
+        },
+    )
+
+
+def _write_tuning_decision_fixture(package_dir):
+    _write_json(
+        package_dir / "tuning_decision.json",
+        {
+            "schema_version": "1.0",
+            "artifact_type": "tuning_decision",
+            "decision": "approved",
+            "proposal_status": "approved",
+            "apply_status": "not_applied",
+            "required_eval_gates": ["gold", "real-smoke"],
+            "human_review": {"note": "Use this as a prose regression.", "reviewer": "byung"},
+        },
+    )
+
+
+def _write_feedback_rule_store(data_dir, *, value, reason):
+    _write_json(
+        data_dir / "feedback" / "rules" / "prose_quality.json",
+        {
+            "schema_version": "1.0",
+            "artifact_type": "feedback_rule_store",
+            "target": "report_prose_quality",
+            "rules": [
+                {
+                    "source_package": "fixture",
+                    "target": "report_prose_quality",
+                    "action": "add_blocked_phrase",
+                    "value": value,
+                    "reason": reason,
+                    "proposal_summary": "Fixture learned prose rule.",
+                    "created_at": "2026-06-13T00:00:00+00:00",
+                }
+            ],
+        },
+    )
+
+
+def _eval_report(suite, status):
+    return {
+        "schema_version": "1.0",
+        "artifact_type": "eval_suite_report",
+        "suite": suite,
+        "status": status,
+        "counts": {"total": 1, "passed": 1 if status == "pass" else 0, "failed": 0 if status == "pass" else 1},
+        "cases": [],
+    }
+
+
 def _write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
@@ -3439,7 +3813,7 @@ class LlmCommandTests(unittest.TestCase):
 
     def _disable_all_roles(self, tmp_path):
         # Set every role to 'none' so `llm status` never spawns a CLI subprocess.
-        for role in ("screener", "extractor", "planner", "composer", "verifier", "critic"):
+        for role in ("screener", "extractor", "planner", "composer", "verifier", "critic", "feedback"):
             self.run_cli(["settings", "set", f"llm.{role}_provider", "none"], tmp_path)
 
     def test_llm_status_lists_roles_without_spawning(self):
@@ -3487,6 +3861,7 @@ class LlmCommandTests(unittest.TestCase):
             self.assertIn("llm.composer_provider: codex_cli", settings_output)
             self.assertIn("llm.composer_model: ", settings_output)
             self.assertIn("llm.verifier_provider: codex_cli", settings_output)
+            self.assertIn("llm.feedback_provider: codex_cli", settings_output)
 
     def test_llm_use_claude_sets_hybrid_writer_and_verifier_profile(self):
         from pathlib import Path
@@ -3507,6 +3882,39 @@ class LlmCommandTests(unittest.TestCase):
             self.assertIn("llm.composer_model: sonnet", settings_output)
             self.assertIn("llm.verifier_provider: codex_cli", settings_output)
             self.assertIn("llm.verifier_model: ", settings_output)
+            self.assertIn("llm.feedback_provider: claude_cli", settings_output)
+            self.assertIn("llm.feedback_model: sonnet", settings_output)
+
+
+class _FeedbackRouter:
+    def __init__(self):
+        self.calls = []
+
+    def role_config(self, role):
+        return type("Config", (), {"provider": "codex_cli", "model": ""})()
+
+    def generate(self, role, request):
+        self.calls.append((role, request))
+        return LLMResponse(
+            provider="codex_cli",
+            model="",
+            success=True,
+            text=json.dumps(
+                {
+                    "summary": "The user flagged readability and broad evidence.",
+                    "signal_types": ["prose_quality", "faithfulness"],
+                    "proposed_actions": [
+                        {
+                            "target": "report_prose_quality",
+                            "action": "tighten_summary_synthesis",
+                            "value": "avoid broad source fragments",
+                            "reason": "The user said the summary was hard to read.",
+                        }
+                    ],
+                    "benchmark_recommendation": "save_failure",
+                }
+            ),
+        )
 
 
 if __name__ == "__main__":
