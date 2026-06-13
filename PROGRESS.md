@@ -113,12 +113,20 @@ Initial implementation:
   instead of dumping one raw evidence row per line.
 - The full-report LLM composer receives the report discourse plan and
   deterministic report as its only rewrite context.
+- Full report packages now export `report_plan_adherence_audit.json`.
+- The plan-adherence audit checks typed claim units against planned evidence
+  moves and flags missing, partial, unplanned, or out-of-order planned moves.
+- Full-report LLM candidates and critic revisions are now rejected if they pass
+  citation/prose/faithfulness checks but drop planned evidence moves.
+- `report_manifest.json` records plan-adherence status, checked move count, and
+  issue count; `report_trust_score.json` includes plan adherence as a blocking
+  component.
 
 Still open:
 
-- A real claim/connective split for generated prose.
-- Better move ordering and synthesis beyond grouping by evidence type.
-- Verifier checks that explicitly compare final report moves against the plan.
+- Richer move ordering and synthesis beyond citation-level planned moves.
+- More explicit connective classification inside claim units.
+- Independent semantic verifier checks that consume the plan-adherence audit.
 
 ## Phase 4 note (in progress) — connected fallback composer
 
@@ -237,6 +245,14 @@ Initial implementation:
   using citation-scoped term overlap. This catches cases where a model keeps a
   valid citation marker but attaches it to unsupported claims such as deployment
   or mortality benefit.
+- The faithfulness audit now consumes typed report claim units and exports
+  per-claim verdicts (`supported`, `weak`, `overstated`, `unsupported`, or
+  `material_gap`) with citation, evidence-type, row-id, parse-confidence, and
+  support-detail metadata.
+- Tier B now has an explicit overstatement detector for high-risk phrasing such
+  as `proved`, `clinically definitive`, `standard of care`, `mortality benefit`,
+  causal claims, deployment claims, and practice-changing language when those
+  terms are not present in the cited evidence text.
 - Full-report LLM rewrites are now accepted only when citation audit,
   prose-quality audit, and faithfulness audit all pass. If faithfulness fails,
   Friday keeps the deterministic report and records `faithfulness_failed` in
@@ -248,6 +264,9 @@ Still open:
 
 - Tier B is lexical, not semantic entailment. It is a conservative guardrail,
   not a substitute for the independent verifier/critic loop in Phase 6.
+- The overstatement detector is rule-based and should be calibrated with real
+  reports; it intentionally favors review over accepting broad clinical or
+  causal claims.
 - The gate needs more real-report calibration once we run additional live
   writing packages across biomedical, math, and general science topics.
 

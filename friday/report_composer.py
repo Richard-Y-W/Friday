@@ -64,10 +64,12 @@ def build_full_report_package_files(
     from friday.claim_decomposition import build_report_claim_units
 
     claim_units = build_report_claim_units(report_markdown, package)
+    plan_adherence_audit = build_report_plan_adherence_audit(report_markdown, discourse_plan, claim_units)
     trust_score = build_report_trust_score(
         citation_audit,
         prose_quality_audit,
         faithfulness_audit,
+        plan_adherence_audit,
         report_composer_audit=report_composer_audit,
     )
     files: dict[str, str | bytes] = {}
@@ -83,6 +85,7 @@ def build_full_report_package_files(
             "claim_units.json": _json_text(claim_units),
             "report_prose_quality.json": _json_text(prose_quality_audit),
             "report_faithfulness_audit.json": _json_text(faithfulness_audit),
+            "report_plan_adherence_audit.json": _json_text(plan_adherence_audit),
             "report_trust_score.json": _json_text(trust_score),
             "report_manifest.json": _json_text(
                 _report_manifest(
@@ -93,6 +96,7 @@ def build_full_report_package_files(
                     faithfulness_audit,
                     trust_score,
                     claim_units,
+                    plan_adherence_audit,
                     report_source=report_source,
                     report_composer_audit=report_composer_audit,
                 )
@@ -393,6 +397,35 @@ def build_report_faithfulness_audit(report_markdown: str, package: dict[str, Any
                 }
             )
 
+    from friday.claim_decomposition import build_report_claim_units
+
+    claim_unit_artifact = build_report_claim_units(report_markdown, package)
+    claim_units = _report_claim_unit_faithfulness_verdicts(
+        claim_unit_artifact.get("claim_units", []),
+        evidence_index,
+    )
+    for claim_unit in claim_units:
+        if claim_unit["verdict"] in {"weak", "overstated"}:
+            tier_b_status = "fallback"
+        if claim_unit["verdict"] == "overstated":
+            issues.append(
+                {
+                    "tier": "B",
+                    "rule": "overstated_claim",
+                    "claim_unit_id": claim_unit["claim_unit_id"],
+                    "claim_type": claim_unit["claim_type"],
+                    "sentence": claim_unit["source_sentence"],
+                    "citations": claim_unit["citations"],
+                    "risk_terms": claim_unit["risk_terms"],
+                    "evidence_terms": claim_unit["evidence_terms"],
+                }
+            )
+
+    verdict_counts: dict[str, int] = {}
+    for claim_unit in claim_units:
+        verdict = str(claim_unit.get("verdict") or "unknown")
+        verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
+
     status = "pass" if tier_a_status == "pass" and tier_b_status == "pass" else "fallback"
     return {
         "schema_version": "1.0",
@@ -401,9 +434,239 @@ def build_report_faithfulness_audit(report_markdown: str, package: dict[str, Any
         "tier_a_status": tier_a_status,
         "tier_b_status": tier_b_status,
         "checked_sentence_count": checked_sentences,
+        "checked_claim_unit_count": sum(
+            1 for claim_unit in claim_units if claim_unit.get("verdict") != "material_gap"
+        ),
+        "verdict_counts": dict(sorted(verdict_counts.items())),
+        "claim_units": claim_units,
         "issue_count": len(issues),
         "issues": issues,
         "known_citations": sorted(known_citations, key=_citation_sort_key),
+    }
+
+
+def _report_claim_unit_faithfulness_verdicts(
+    claim_units: Any,
+    evidence_index: dict[str, str],
+) -> list[dict[str, Any]]:
+    verdicts: list[dict[str, Any]] = []
+    if not isinstance(claim_units, list):
+        return verdicts
+    for unit in claim_units:
+        if not isinstance(unit, dict):
+            continue
+        citations = _string_list(unit.get("citations"))
+        support_status = str(unit.get("support_status") or "").strip()
+        risk_terms = _unsupported_overstatement_terms(
+            str(unit.get("text") or unit.get("source_sentence") or ""),
+            citations,
+            evidence_index,
+        )
+        verdict = _claim_unit_faithfulness_verdict(support_status, risk_terms)
+        support_details = unit.get("support_details")
+        if not isinstance(support_details, dict):
+            support_details = {}
+        verdicts.append(
+            {
+                "claim_unit_id": str(unit.get("claim_unit_id") or ""),
+                "section": str(unit.get("section") or ""),
+                "claim_type": str(unit.get("claim_type") or ""),
+                "text": str(unit.get("text") or ""),
+                "source_sentence": str(unit.get("source_sentence") or ""),
+                "citations": citations,
+                "support_status": support_status,
+                "verdict": verdict,
+                "risk_terms": risk_terms,
+                "evidence_terms": _evidence_terms_for_citations(citations, evidence_index),
+                "evidence_count": _optional_int(unit.get("evidence_count")),
+                "evidence_types": _string_list(unit.get("evidence_types")),
+                "evidence_row_ids": _string_list(unit.get("evidence_row_ids")),
+                "min_quality_score": _optional_float(unit.get("min_quality_score")),
+                "min_parse_confidence": _optional_float(unit.get("min_parse_confidence")),
+                "min_trust_score": _optional_float(unit.get("min_trust_score")),
+                "support_details": support_details,
+            }
+        )
+    return verdicts
+
+
+def _claim_unit_faithfulness_verdict(support_status: str, risk_terms: list[str]) -> str:
+    if support_status == "material_gap":
+        return "material_gap"
+    if risk_terms:
+        return "overstated"
+    if support_status == "supported":
+        return "supported"
+    if support_status == "weak_support":
+        return "weak"
+    if support_status in {"uncited", "unknown_citation"}:
+        return "unsupported"
+    return "weak" if support_status else "unsupported"
+
+
+def _unsupported_overstatement_terms(
+    claim_text: str,
+    citations: list[str],
+    evidence_index: dict[str, str],
+) -> list[str]:
+    risk_terms = _overstatement_terms(claim_text)
+    if not risk_terms or not citations:
+        return []
+    evidence_text = " ".join(evidence_index.get(citation, "") for citation in citations).casefold()
+    return [term for term in risk_terms if not _overstatement_term_supported(term, evidence_text)]
+
+
+def _overstatement_terms(text: str) -> list[str]:
+    lowered = text.casefold()
+    terms: list[str] = []
+    for pattern in _OVERSTATEMENT_PATTERNS:
+        for match in re.finditer(pattern, lowered):
+            terms.append(" ".join(match.group(0).split()))
+    return _ordered_unique(terms)
+
+
+def _overstatement_term_supported(term: str, evidence_text: str) -> bool:
+    if not evidence_text:
+        return False
+    if term in evidence_text:
+        return True
+    if term in {"prove", "proved", "proves", "proven"}:
+        return any(candidate in evidence_text for candidate in ("prove", "proved", "proves", "proven"))
+    return False
+
+
+def _evidence_terms_for_citations(citations: list[str], evidence_index: dict[str, str]) -> list[str]:
+    evidence_text = " ".join(evidence_index.get(citation, "") for citation in citations)
+    return sorted(_faithfulness_terms(evidence_text))
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_report_plan_adherence_audit(
+    report_markdown: str,
+    discourse_plan: dict[str, Any],
+    claim_units: dict[str, Any],
+) -> dict[str, Any]:
+    units = [unit for unit in claim_units.get("claim_units", []) if isinstance(unit, dict)]
+    units_by_section: dict[str, list[dict[str, Any]]] = {section: [] for section in REPORT_SECTIONS}
+    for unit in units:
+        section = _report_section_key(str(unit.get("section") or ""))
+        if section in units_by_section:
+            units_by_section[section].append(unit)
+
+    issues: list[dict[str, Any]] = []
+    checked_moves = 0
+    planned_sections: dict[str, dict[str, Any]] = {}
+    sections = discourse_plan.get("sections", {})
+    if not isinstance(sections, dict):
+        sections = {}
+    for section in REPORT_SECTIONS:
+        section_plan = sections.get(section)
+        if not isinstance(section_plan, dict):
+            continue
+        moves = [move for move in section_plan.get("moves", []) if isinstance(move, dict)]
+        plan_citations = _ordered_unique(
+            citation
+            for move in moves
+            if str(move.get("kind") or "") == "evidence_cluster"
+            for citation in _string_list(move.get("citations"))
+        )
+        planned_sections[section] = {"move_count": 0, "planned_citations": plan_citations}
+        if not plan_citations:
+            continue
+        unit_citations = _ordered_unique(
+            citation
+            for unit in units_by_section.get(section, [])
+            for citation in _string_list(unit.get("citations"))
+        )
+        previous_move_index: int | None = None
+        for move in moves:
+            if str(move.get("kind") or "") != "evidence_cluster":
+                continue
+            citations = _string_list(move.get("citations"))
+            if not citations:
+                continue
+            checked_moves += 1
+            planned_sections[section]["move_count"] += 1
+            present = [citation for citation in citations if citation in unit_citations]
+            missing = [citation for citation in citations if citation not in unit_citations]
+            if missing:
+                issues.append(
+                    {
+                        "rule": "missing_planned_move" if not present else "partial_planned_move",
+                        "section": section,
+                        "label": str(move.get("label") or ""),
+                        "row_ids": _string_list(move.get("row_ids")),
+                        "planned_citations": citations,
+                        "present_citations": present,
+                        "missing_citations": missing,
+                    }
+                )
+                continue
+            move_index = _first_unit_index_with_any_citation(units_by_section.get(section, []), citations)
+            if move_index is not None and previous_move_index is not None and move_index < previous_move_index:
+                issues.append(
+                    {
+                        "rule": "out_of_order_planned_move",
+                        "section": section,
+                        "label": str(move.get("label") or ""),
+                        "planned_citations": citations,
+                    }
+                )
+            if move_index is not None:
+                previous_move_index = move_index
+
+        planned_set = set(plan_citations)
+        for unit in units_by_section.get(section, []):
+            citations = _string_list(unit.get("citations"))
+            if not citations:
+                continue
+            unplanned = [citation for citation in citations if citation not in planned_set]
+            if unplanned:
+                issues.append(
+                    {
+                        "rule": "unplanned_claim",
+                        "section": section,
+                        "claim_unit_id": str(unit.get("claim_unit_id") or ""),
+                        "claim_type": str(unit.get("claim_type") or ""),
+                        "citations": citations,
+                        "unplanned_citations": unplanned,
+                        "text": str(unit.get("text") or ""),
+                    }
+                )
+
+    checked_claim_units = sum(
+        1
+        for section, units_in_section in units_by_section.items()
+        if planned_sections.get(section, {}).get("planned_citations")
+        for unit in units_in_section
+        if _string_list(unit.get("citations"))
+    )
+    return {
+        "schema_version": "1.0",
+        "artifact_type": "report_plan_adherence_audit",
+        "status": "pass" if not issues else "fallback",
+        "checked_move_count": checked_moves,
+        "checked_claim_unit_count": checked_claim_units,
+        "issue_count": len(issues),
+        "sections": planned_sections,
+        "issues": issues,
     }
 
 
@@ -411,6 +674,7 @@ def build_report_trust_score(
     citation_audit: dict[str, Any],
     prose_quality_audit: dict[str, Any],
     faithfulness_audit: dict[str, Any],
+    plan_adherence_audit: dict[str, Any] | None = None,
     *,
     report_composer_audit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -422,6 +686,7 @@ def build_report_trust_score(
         "faithfulness": str(faithfulness_audit.get("status") or "unknown"),
         "tier_a": str(faithfulness_audit.get("tier_a_status") or "unknown"),
         "tier_b": str(faithfulness_audit.get("tier_b_status") or "unknown"),
+        "plan_adherence": str((plan_adherence_audit or {}).get("status") or "unknown"),
         "report_composer": str((report_composer_audit or {}).get("status") or "not_run"),
         "report_composer_reason": str((report_composer_audit or {}).get("reason") or "not_run"),
         "critic": _trust_critic_status(report_composer_audit),
@@ -439,11 +704,14 @@ def build_report_trust_score(
     if components["tier_b"] not in {"pass", "unknown"}:
         score = min(score, 55)
         reasons.append("tier_b_failed")
+    if components["plan_adherence"] not in {"pass", "unknown"}:
+        score = min(score, 50)
+        reasons.append("plan_adherence_failed")
     if components["prose_quality"] != "pass":
         score = min(score, 70)
         reasons.append("prose_quality_failed")
 
-    if any(reason in reasons for reason in ("citation_audit_failed", "faithfulness_failed", "tier_a_failed")):
+    if any(reason in reasons for reason in ("citation_audit_failed", "faithfulness_failed", "tier_a_failed", "plan_adherence_failed")):
         verdict = "blocked"
         action = "block"
     elif components["critic"] == "pass":
@@ -538,6 +806,13 @@ def _compose_full_report_with_llm(
     citation_audit = build_full_report_citation_audit(candidate_markdown, sections)
     prose_quality_audit = build_report_prose_quality_audit(candidate_markdown, feedback_rules=feedback_prose_rules or [])
     faithfulness_audit = build_report_faithfulness_audit(candidate_markdown, package)
+    from friday.claim_decomposition import build_report_claim_units
+
+    plan_adherence_audit = build_report_plan_adherence_audit(
+        candidate_markdown,
+        discourse_plan,
+        build_report_claim_units(candidate_markdown, package),
+    )
     if citation_audit["status"] != "pass":
         audit = {
             **base,
@@ -578,6 +853,21 @@ def _compose_full_report_with_llm(
         }
         files["report_composer_audit.json"] = _json_text(audit)
         return deterministic_report_markdown, files, audit
+    if plan_adherence_audit["status"] != "pass":
+        audit = {
+            **base,
+            "status": "fallback",
+            "reason": "plan_adherence_failed",
+            "final_report_source": "deterministic",
+            "candidate_citation_audit_status": citation_audit["status"],
+            "candidate_prose_quality_status": prose_quality_audit["status"],
+            "candidate_faithfulness_status": faithfulness_audit["status"],
+            "candidate_plan_adherence_status": plan_adherence_audit["status"],
+            "candidate_plan_adherence_issues": plan_adherence_audit["issues"],
+            "candidate_used_citations": citation_audit["used_citations"],
+        }
+        files["report_composer_audit.json"] = _json_text(audit)
+        return deterministic_report_markdown, files, audit
 
     accepted_critic_status = None
     accepted_critic_reason = None
@@ -613,10 +903,12 @@ def _compose_full_report_with_llm(
                     "candidate_citation_audit_status": citation_audit["status"],
                     "candidate_prose_quality_status": prose_quality_audit["status"],
                     "candidate_faithfulness_status": faithfulness_audit["status"],
+                    "candidate_plan_adherence_status": plan_adherence_audit["status"],
                     "critic_status": critic_audit["status"],
                     "revision_citation_audit_status": revision_audit["citation_audit_status"],
                     "revision_prose_quality_status": revision_audit["prose_quality_status"],
                     "revision_faithfulness_status": revision_audit["faithfulness_status"],
+                    "revision_plan_adherence_status": revision_audit["plan_adherence_status"],
                     "revision_critic_status": revision_audit.get("critic_status"),
                 }
                 files["report_composer_audit.json"] = _json_text(audit)
@@ -629,10 +921,12 @@ def _compose_full_report_with_llm(
                 "candidate_citation_audit_status": citation_audit["status"],
                 "candidate_prose_quality_status": prose_quality_audit["status"],
                 "candidate_faithfulness_status": faithfulness_audit["status"],
+                "candidate_plan_adherence_status": plan_adherence_audit["status"],
                 "critic_status": critic_audit["status"],
                 "revision_citation_audit_status": revision_audit["citation_audit_status"],
                 "revision_prose_quality_status": revision_audit["prose_quality_status"],
                 "revision_faithfulness_status": revision_audit["faithfulness_status"],
+                "revision_plan_adherence_status": revision_audit["plan_adherence_status"],
                 "revision_critic_status": revision_audit.get("critic_status"),
             }
             files["report_composer_audit.json"] = _json_text(audit)
@@ -648,6 +942,7 @@ def _compose_full_report_with_llm(
         "candidate_citation_audit_status": citation_audit["status"],
         "candidate_prose_quality_status": prose_quality_audit["status"],
         "candidate_faithfulness_status": faithfulness_audit["status"],
+        "candidate_plan_adherence_status": plan_adherence_audit["status"],
         "candidate_used_citations": citation_audit["used_citations"],
         "critic_status": accepted_critic_status,
         "critic_reason": accepted_critic_reason,
@@ -891,6 +1186,7 @@ def _revise_full_report_after_critic(
             "citation_audit_status": "skipped",
             "prose_quality_status": "skipped",
             "faithfulness_status": "skipped",
+            "plan_adherence_status": "skipped",
             "error": getattr(response, "error", None),
         }
         files["report_revision_audit.json"] = _json_text(audit)
@@ -904,6 +1200,7 @@ def _revise_full_report_after_critic(
             "citation_audit_status": "skipped",
             "prose_quality_status": "skipped",
             "faithfulness_status": "skipped",
+            "plan_adherence_status": "skipped",
         }
         files["report_revision_audit.json"] = _json_text(audit)
         return deterministic_report_markdown, files, audit
@@ -913,11 +1210,19 @@ def _revise_full_report_after_critic(
     citation_audit = build_full_report_citation_audit(revised_markdown, sections)
     prose_quality_audit = build_report_prose_quality_audit(revised_markdown, feedback_rules=feedback_prose_rules or [])
     faithfulness_audit = build_report_faithfulness_audit(revised_markdown, package)
+    from friday.claim_decomposition import build_report_claim_units
+
+    plan_adherence_audit = build_report_plan_adherence_audit(
+        revised_markdown,
+        discourse_plan,
+        build_report_claim_units(revised_markdown, package),
+    )
     revision_status = (
         "pass"
         if citation_audit["status"] == "pass"
         and prose_quality_audit["status"] == "pass"
         and faithfulness_audit["status"] == "pass"
+        and plan_adherence_audit["status"] == "pass"
         else "fallback"
     )
     critic_status = None
@@ -948,9 +1253,11 @@ def _revise_full_report_after_critic(
         "citation_audit_status": citation_audit["status"],
         "prose_quality_status": prose_quality_audit["status"],
         "faithfulness_status": faithfulness_audit["status"],
+        "plan_adherence_status": plan_adherence_audit["status"],
         "citation_unknown_citations": citation_audit.get("unknown_citations", []),
         "prose_quality_issues": prose_quality_audit.get("issues", []),
         "faithfulness_issues": faithfulness_audit.get("issues", []),
+        "plan_adherence_issues": plan_adherence_audit.get("issues", []),
         "critic_status": critic_status,
         "critic_reason": critic_reason,
     }
@@ -1258,6 +1565,27 @@ def _citation_sort_key(citation: str) -> tuple[int, int, str]:
     if not match:
         return (999999, 999999, citation)
     return (int(match.group(1)), int(match.group(2)), citation)
+
+
+_OVERSTATEMENT_PATTERNS = (
+    r"\bprove[sd]?\b",
+    r"\bproven\b",
+    r"\bestablish(?:ed|es)?\b",
+    r"\bdefinitive\b",
+    r"\bclinically definitive\b",
+    r"\bstandard of care\b",
+    r"\bmortality benefit\b",
+    r"\bsurvival benefit\b",
+    r"\bcausal(?:ity)?\b",
+    r"\bcaused\b",
+    r"\bguarantee[sd]?\b",
+    r"\bglobal hospital deployment\b",
+    r"\bclinical deployment\b",
+    r"\bvalidated for deployment\b",
+    r"\bready for clinical use\b",
+    r"\broutine clinical use\b",
+    r"\bpractice[- ]changing\b",
+)
 
 
 _FAITHFULNESS_STOPWORDS = {
@@ -1672,6 +2000,27 @@ def _section_audit(section_files: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def _report_section_key(section: str) -> str:
+    normalized = " ".join(section.strip().lstrip("#").split()).casefold()
+    if "background" in normalized:
+        return "background"
+    if "method" in normalized:
+        return "methods"
+    if "result" in normalized or "finding" in normalized or "model performance" in normalized:
+        return "results"
+    if "limitation" in normalized or "material gap" in normalized:
+        return "limitations"
+    return normalized.replace(" ", "_")
+
+
+def _first_unit_index_with_any_citation(units: list[dict[str, Any]], citations: list[str]) -> int | None:
+    wanted = set(citations)
+    for index, unit in enumerate(units):
+        if wanted & set(_string_list(unit.get("citations"))):
+            return index
+    return None
+
+
 def _report_manifest(
     package: dict[str, Any],
     sections: dict[str, dict[str, str]],
@@ -1680,6 +2029,7 @@ def _report_manifest(
     faithfulness_audit: dict[str, Any],
     trust_score: dict[str, Any],
     claim_units: dict[str, Any],
+    plan_adherence_audit: dict[str, Any],
     *,
     report_source: str,
     report_composer_audit: dict[str, Any] | None = None,
@@ -1704,6 +2054,9 @@ def _report_manifest(
         "claim_unit_status": claim_units.get("status"),
         "claim_unit_count": claim_units.get("claim_unit_count", 0),
         "claim_unit_issue_count": claim_units.get("issue_count", 0),
+        "plan_adherence_status": plan_adherence_audit.get("status"),
+        "plan_adherence_issue_count": plan_adherence_audit.get("issue_count", 0),
+        "plan_adherence_checked_move_count": plan_adherence_audit.get("checked_move_count", 0),
         "trust_score": trust_score.get("score"),
         "trust_verdict": trust_score.get("verdict"),
         "trust_action": trust_score.get("action"),

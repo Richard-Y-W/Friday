@@ -13,7 +13,9 @@ from friday.compose_agent import (
 from friday.llm.types import LLMResponse
 from friday.report_composer import (
     build_full_report_package_files,
+    build_report_discourse_plan,
     build_report_faithfulness_audit,
+    build_report_plan_adherence_audit,
     build_report_prose_quality_audit,
     build_report_trust_score,
 )
@@ -1007,6 +1009,90 @@ class ComposeAgentTests(unittest.TestCase):
                 report,
             )
 
+    def test_report_plan_adherence_audit_flags_missing_planned_move_citations(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P1 p2",
+                            "text": "The model achieved AUROC 0.91.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                        {
+                            "row_id": "E2",
+                            "evidence_type": "result",
+                            "paper": "P2",
+                            "citation": "P2 p2",
+                            "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                    ]
+                },
+            )
+            package = load_writing_package(package_dir)
+            plan = build_report_discourse_plan(package)
+            report = (
+                "# Friday Research Report\n\n"
+                "## Results\n\n"
+                "One paper reported that the model achieved AUROC 0.91 [1, p. 2].\n\n"
+                "---\n\n"
+                "## Evidence Table\n\n"
+                "| Section | Evidence | Citations |\n"
+                "| --- | --- | --- |\n"
+                "| result | AUROC 0.91 | 1, p. 2 |\n"
+            )
+            from friday.claim_decomposition import build_report_claim_units
+
+            claim_units = build_report_claim_units(report, package)
+
+            audit = build_report_plan_adherence_audit(report, plan, claim_units)
+
+            self.assertEqual(audit["artifact_type"], "report_plan_adherence_audit")
+            self.assertEqual(audit["status"], "fallback")
+            self.assertEqual(audit["checked_move_count"], 1)
+            self.assertEqual(audit["issues"][0]["rule"], "partial_planned_move")
+            self.assertEqual(audit["issues"][0]["missing_citations"], ["P2 p2"])
+
+    def test_full_report_exports_plan_adherence_audit_and_manifest_status(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P1 p2",
+                            "text": "The model achieved AUROC 0.91.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        }
+                    ]
+                },
+            )
+
+            files = build_full_report_package_files(package_dir)
+
+            self.assertIn("report_plan_adherence_audit.json", files)
+            audit = json.loads(files["report_plan_adherence_audit.json"])
+            self.assertEqual(audit["status"], "pass")
+            self.assertEqual(audit["checked_move_count"], 1)
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["plan_adherence_status"], "pass")
+            self.assertEqual(manifest["plan_adherence_issue_count"], 0)
+
     def test_full_report_atomic_row_rewrite_does_not_create_studys_study(self):
         with TemporaryDirectory() as tmp:
             package_dir = Path(tmp) / "package"
@@ -1256,6 +1342,86 @@ class ComposeAgentTests(unittest.TestCase):
             manifest = json.loads(files["report_manifest.json"])
             self.assertEqual(manifest["report_source"], "deterministic")
 
+    def test_full_report_llm_falls_back_when_candidate_violates_discourse_plan(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            _write_json(
+                package_dir / "evidence_tables.json",
+                {
+                    "all_rows": [
+                        {
+                            "row_id": "E1",
+                            "evidence_type": "result",
+                            "paper": "P1",
+                            "citation": "P1 p2",
+                            "text": "The model achieved AUROC 0.91.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                        {
+                            "row_id": "E2",
+                            "evidence_type": "result",
+                            "paper": "P2",
+                            "citation": "P2 p2",
+                            "text": "The classifier detected resistant isolates with 88 percent sensitivity.",
+                            "support_status": "SUPPORTED",
+                            "quality_label": "clean",
+                        },
+                    ]
+                },
+            )
+            router = FakeRouter(
+                {
+                    "composer": LLMResponse(
+                        provider="codex_cli",
+                        model="",
+                        success=True,
+                        text=(
+                            "# Friday Research Report\n\n"
+                            "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                            "## Executive Summary\n\n"
+                            "- **Results:** One paper reported that the model achieved AUROC 0.91 [1, p. 2].\n\n"
+                            "---\n\n"
+                            "## Background\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Methods\n\n"
+                            "Two papers described spectra classifiers [1, p. 1; 2, p. 1].\n\n"
+                            "---\n\n"
+                            "## Results\n\n"
+                            "One paper reported that the model achieved AUROC 0.91 [1, p. 2].\n\n"
+                            "---\n\n"
+                            "## Limitations\n\n"
+                            "- MATERIAL GAP: No page-anchored limitation evidence is available in this batch.\n\n"
+                            "---\n\n"
+                            "## Evidence Table\n\n"
+                            "| Section | Evidence | Citations |\n"
+                            "| --- | --- | --- |\n"
+                            "| result | AUROC 0.91 | 1, p. 2 |\n\n"
+                            "---\n\n"
+                            "## Literature\n\n"
+                            "| Paper | Title | Year | Venue | DOI |\n"
+                            "| --- | --- | --- | --- | --- |\n"
+                            "| P1 | MALDI antimicrobial resistance prediction | 2024 | Nature Medicine | 10.1038/example-a |\n\n"
+                            "---\n\n"
+                            "## Citation Audit\n\n"
+                            "- Status: pass\n"
+                        ),
+                    )
+                }
+            )
+
+            files = build_full_report_package_files(package_dir, router=router, use_report_llm=True)
+
+            report_audit = json.loads(files["report_composer_audit.json"])
+            self.assertEqual(report_audit["status"], "fallback")
+            self.assertEqual(report_audit["reason"], "plan_adherence_failed")
+            self.assertEqual(report_audit["candidate_plan_adherence_status"], "fallback")
+            self.assertIn("88 percent sensitivity", files["report.md"])
+            manifest = json.loads(files["report_manifest.json"])
+            self.assertEqual(manifest["report_source"], "deterministic")
+
     def test_report_faithfulness_audit_flags_uncited_main_report_claims(self):
         with TemporaryDirectory() as tmp:
             package_dir = Path(tmp) / "package"
@@ -1338,6 +1504,63 @@ class ComposeAgentTests(unittest.TestCase):
             unsupported = [issue for issue in audit["issues"] if issue["rule"] == "weak_evidence_overlap"]
             self.assertTrue(unsupported)
             self.assertIn("mortality", unsupported[0]["missing_terms"])
+
+    def test_report_faithfulness_audit_exports_per_claim_unit_verdicts(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            package = load_writing_package(package_dir)
+            report = (
+                "# Friday Research Report\n\n"
+                "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                "## Executive Summary\n\n"
+                "- **Results:** Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].\n\n"
+                "---\n\n"
+                "## Results\n\n"
+                "Two papers reported AUROC 0.91 and sensitivity 88 percent [1, p. 2; 2, p. 2].\n"
+            )
+
+            audit = build_report_faithfulness_audit(report, package)
+
+            self.assertEqual(audit["status"], "pass")
+            self.assertGreaterEqual(audit["checked_claim_unit_count"], 1)
+            supported = [
+                unit
+                for unit in audit["claim_units"]
+                if "AUROC 0.91" in unit["text"] and unit["section"] == "Results"
+            ]
+            self.assertTrue(supported)
+            self.assertEqual(supported[0]["verdict"], "supported")
+            self.assertEqual(supported[0]["claim_type"], "synthesis")
+            self.assertEqual(supported[0]["citations"], ["P1 p2", "P2 p2"])
+            self.assertEqual(supported[0]["risk_terms"], [])
+
+    def test_report_faithfulness_audit_flags_overstated_claim_units(self):
+        with TemporaryDirectory() as tmp:
+            package_dir = Path(tmp) / "package"
+            _write_fixture_package(package_dir)
+            package = load_writing_package(package_dir)
+            report = (
+                "# Friday Research Report\n\n"
+                "Source: Batch `batch_test`; query `MALDI AMR`; screened `1000`; deep-read `50`\n\n"
+                "## Executive Summary\n\n"
+                "- **Results:** One paper proved clinically definitive mortality benefit [1, p. 2].\n\n"
+                "---\n\n"
+                "## Results\n\n"
+                "One paper proved clinically definitive mortality benefit [1, p. 2].\n"
+            )
+
+            audit = build_report_faithfulness_audit(report, package)
+
+            self.assertEqual(audit["status"], "fallback")
+            self.assertEqual(audit["tier_b_status"], "fallback")
+            overstated = [issue for issue in audit["issues"] if issue["rule"] == "overstated_claim"]
+            self.assertTrue(overstated)
+            self.assertIn("proved", overstated[0]["risk_terms"])
+            self.assertIn("clinically definitive", overstated[0]["risk_terms"])
+            claim_verdicts = [unit for unit in audit["claim_units"] if unit["verdict"] == "overstated"]
+            self.assertTrue(claim_verdicts)
+            self.assertIn("mortality benefit", claim_verdicts[0]["risk_terms"])
 
     def test_full_report_exports_faithfulness_audit_and_manifest_status(self):
         with TemporaryDirectory() as tmp:
